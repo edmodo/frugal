@@ -1,0 +1,571 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// A simple recursive-descent parser for Thrift IDL.
+type Parser struct {
+	Context *CompileContext
+	scanner *Scanner
+	tree    *ParseTree
+}
+
+func NewParser(context *CompileContext) (*Parser, error) {
+	scanner, err := NewScanner(context)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Parser{
+		Context: context,
+		scanner: scanner,
+		tree:    NewParseTree(),
+	}, nil
+}
+
+// If the next token matches |kind|, return the token. Otherwise, return nil.
+func (this *Parser) match(kind TokenKind) *Token {
+	tok := this.scanner.next()
+	if tok.Kind != kind {
+		this.scanner.undo()
+		return nil
+	}
+	return tok
+}
+
+// If the next token matches |kind|, return the token. Otherwise, report an
+// error and return nil.
+func (this *Parser) need(kind TokenKind) *Token {
+	tok := this.scanner.next()
+	if kind != tok.Kind {
+		name := PrettyPrintMap[kind]
+		this.Context.ReportError(tok.Loc.Start, "expected %s, but got %s", name, tok.String())
+		return nil
+	}
+	return tok
+}
+
+// Parse the following:
+//   name-path ::= identifier ("." identifier)*
+//   namespace ::= "namespace" name-path
+//
+// The first identifier is a language extension, and the rest of the production
+// is the namespace for that language. These do not appear in the formal AST,
+// rather, they are collected into a map during parsing.
+func (this *Parser) parseNamespace() bool {
+	tok := this.need(TOK_IDENTIFIER)
+	if tok == nil {
+		return false
+	}
+
+	language := tok.Identifier()
+
+	// At least one part of a namespace is required.
+	if tok = this.need(TOK_IDENTIFIER); tok == nil {
+		return false
+	}
+	parts := []string{tok.Identifier()}
+
+	// Read any additional components.
+	for this.match(TOK_DOT) != nil {
+		if tok = this.need(TOK_IDENTIFIER); tok == nil {
+			return false
+		}
+		parts = append(parts, tok.Identifier())
+	}
+
+	namespace := strings.Join(parts, ".")
+	this.tree.Namespaces[language] = namespace
+
+	return true
+}
+
+// Parse the following:
+//   include ::= "include" literal-string
+//
+// Like namespaces, these are not in the AST proper.
+func (this *Parser) parseInclude() bool {
+	tok := this.need(TOK_LITERAL_STRING)
+	if tok == nil {
+		return false
+	}
+
+	this.tree.Includes = append(this.tree.Includes, tok.StringLiteral())
+	return true
+}
+
+// Parse:
+//   expr ::= string-literal
+//          | integer-literal
+//          | name-path
+//          | "[" (expr ","?)* "]"
+//          | "{" (expr ":" expr ","?)* "}"
+func (this *Parser) parseExpr() Node {
+	tok := this.scanner.next()
+	switch tok.Kind {
+	case TOK_LITERAL_STRING, TOK_LITERAL_INT:
+		return &LiteralNode{tok}
+
+	case TOK_IDENTIFIER:
+		path := this.parseNames(tok)
+		if path == nil {
+			return nil
+		}
+		return &NameProxyNode{path}
+
+	// Parse a list of expressions.
+	case TOK_LBRACKET:
+		exprs := []Node{}
+		for this.match(TOK_RBRACKET) == nil {
+			expr := this.parseExpr()
+			if expr == nil {
+				return nil
+			}
+			exprs = append(exprs, expr)
+
+			// Eat an optional comma.
+			this.match(TOK_COMMA)
+		}
+		return &ListNode{exprs}
+
+	// Parse a list of key-value pairs.
+	case TOK_LBRACE:
+		entries := []MapNodeEntry{}
+		for this.match(TOK_RBRACE) == nil {
+			left := this.parseExpr()
+			if left == nil {
+				return nil
+			}
+
+			if this.need(TOK_COLON) == nil {
+				return nil
+			}
+
+			right := this.parseExpr()
+			if right == nil {
+				return nil
+			}
+
+			entries = append(entries, MapNodeEntry{
+				Key:   left,
+				Value: right,
+			})
+
+			// Eat an optional comma.
+			this.match(TOK_COMMA)
+		}
+		return &MapNode{entries}
+	}
+
+	this.Context.ReportError(tok.Loc.Start, "expected a constant expression, got %s", tok.String())
+	return nil
+}
+
+// Parse the following:
+//   enum ::= "enum" identifier "{" (identifier ","?)* "}"
+func (this *Parser) parseEnum(start *Token) *EnumNode {
+	name := this.need(TOK_IDENTIFIER)
+	if name == nil {
+		return nil
+	}
+	if this.need(TOK_LBRACE) == nil {
+		return nil
+	}
+
+	fields := []*Token{}
+	for this.match(TOK_RBRACE) == nil {
+		field := this.need(TOK_IDENTIFIER)
+		if field == nil {
+			return nil
+		}
+		fields = append(fields, field)
+
+		// Comma isn't needed, but may be present.
+		this.match(TOK_COMMA)
+	}
+
+	return &EnumNode{
+		Range: Location{
+			Start: start.Loc.Start,
+			End:   this.scanner.Position(),
+		},
+		Name:   name,
+		Fields: fields,
+	}
+}
+
+// Parse the rest of a fully-qualified name.
+func (this *Parser) parseNames(first *Token) []*Token {
+	path := []*Token{first}
+	for this.match(TOK_DOT) != nil {
+		ident := this.need(TOK_IDENTIFIER)
+		if ident == nil {
+			return nil
+		}
+		path = append(path, ident)
+	}
+	return path
+}
+
+// Parse a fully-qualified name.
+func (this *Parser) parseFullName() *NameProxyNode {
+	tok := this.need(TOK_IDENTIFIER)
+	if tok == nil {
+		return nil
+	}
+	path := this.parseNames(tok)
+	if path == nil {
+		return nil
+	}
+	return &NameProxyNode{path}
+}
+
+// Parse the following:
+//   type ::= i32
+//          | i64
+//          | string
+//          | double
+//          | name-path
+//          | "list" "<" type ">"
+//          | "map" "<" type "," type ">"
+func (this *Parser) parseType() Type {
+	tok := this.scanner.next()
+	switch tok.Kind {
+	case TOK_I32,
+		TOK_I64,
+		TOK_VOID,
+		TOK_STRING,
+		TOK_DOUBLE:
+		return &BuiltinType{tok}
+
+	case TOK_IDENTIFIER:
+		path := this.parseNames(tok)
+		if path == nil {
+			return nil
+		}
+		return &NamedType{path}
+
+	// list<type>
+	case TOK_LIST:
+		if this.need(TOK_LT) == nil {
+			return nil
+		}
+		ttype := this.parseType()
+		if ttype == nil {
+			return nil
+		}
+		if this.need(TOK_GT) == nil {
+			return nil
+		}
+		return &ListType{ttype}
+
+	// map<type, type>
+	case TOK_MAP:
+		if this.need(TOK_LT) == nil {
+			return nil
+		}
+		left := this.parseType()
+		if left == nil || this.need(TOK_COMMA) == nil {
+			return nil
+		}
+		right := this.parseType()
+		if right == nil {
+			return nil
+		}
+		if this.need(TOK_GT) == nil {
+			return nil
+		}
+		return &MapType{left, right}
+	}
+
+	this.Context.ReportError(tok.Loc.Start, "expected type name, got: %s", tok.String())
+	return nil
+}
+
+// Parse the following:
+//   struct              ::= "struct" identifier "{" struct-body "}"
+//   struct-body         ::= (struct-member ","?)*
+//   struct-member       ::= struct-member-order? struct-member-spec type identifier ("=" expression)?
+//   struct-member-order ::= integer-literal ":"
+//   struct-member-spec  ::= "required" | "optional"
+//
+func (this *Parser) parseStruct(start *Token) *StructNode {
+	name := this.need(TOK_IDENTIFIER)
+	if name == nil {
+		return nil
+	}
+	if this.need(TOK_LBRACE) == nil {
+		return nil
+	}
+
+	fields := []*StructField{}
+	for this.match(TOK_RBRACE) == nil {
+		order := this.match(TOK_LITERAL_INT)
+		if order != nil {
+			if this.need(TOK_COLON) == nil {
+				return nil
+			}
+		}
+
+		spec := this.scanner.next()
+		if spec.Kind != TOK_REQUIRED && spec.Kind != TOK_OPTIONAL {
+			this.Context.ReportError(spec.Loc.Start, "expected \"required\" or \"optional\"")
+			return nil
+		}
+
+		ttype := this.parseType()
+		if ttype == nil {
+			return nil
+		}
+
+		name := this.need(TOK_IDENTIFIER)
+		if name == nil {
+			return nil
+		}
+
+		var expr Node
+		if this.match(TOK_ASSIGN) != nil {
+			if expr = this.parseExpr(); expr == nil {
+				return nil
+			}
+		}
+
+		field := &StructField{
+			Order:   order,
+			Spec:    spec,
+			Name:    name,
+			Default: expr,
+		}
+
+		// Comma isn't needed, but may be present.
+		this.match(TOK_COMMA)
+
+		fields = append(fields, field)
+	}
+
+	return &StructNode{
+		Range: Location{
+			Start: start.Loc.Start,
+			End:   this.scanner.Position(),
+		},
+		Name:   name,
+		Fields: fields,
+	}
+}
+
+// Parse:
+//   service-method-arg ::= (integer-literal ":")? type identifier ","?
+func (this *Parser) parseArgs() []*ServiceMethodArg {
+	if this.need(TOK_LPAREN) == nil {
+		return nil
+	}
+
+	args := []*ServiceMethodArg{}
+	for this.match(TOK_RPAREN) == nil {
+		order := this.match(TOK_LITERAL_INT)
+		if order != nil {
+			if this.need(TOK_COLON) == nil {
+				return nil
+			}
+		}
+
+		ttype := this.parseType()
+		if ttype == nil {
+			return nil
+		}
+
+		name := this.need(TOK_IDENTIFIER)
+		if name == nil {
+			return nil
+		}
+
+		// Eat an optional comma.
+		this.match(TOK_COMMA)
+
+		arg := &ServiceMethodArg{
+			Order: order,
+			Type:  ttype,
+			Name:  name,
+		}
+		args = append(args, arg)
+	}
+
+	return args
+}
+
+// Parse:
+//   service ::= "service" identifier ("extends" name-path) "{" service-body "}"
+//   service-body ::= service-method*
+//   service-method ::= type identifier "(" service-method-arg* ")" service-method-throws?
+//   service-method-throws ::= "throws" "(" service-method-arg* ")"
+func (this *Parser) parseService(start *Token) *ServiceNode {
+	name := this.need(TOK_IDENTIFIER)
+	if name == nil {
+		return nil
+	}
+
+	var extends *NameProxyNode
+	if this.match(TOK_EXTENDS) != nil {
+		if extends = this.parseFullName(); extends == nil {
+			return nil
+		}
+	}
+
+	if this.need(TOK_LBRACE) == nil {
+		return nil
+	}
+
+	methods := []*ServiceMethod{}
+	for this.match(TOK_RBRACE) == nil {
+		oneway := this.match(TOK_ONEWAY)
+
+		ttype := this.parseType()
+		if ttype == nil {
+			return nil
+		}
+
+		name := this.need(TOK_IDENTIFIER)
+		if name == nil {
+			return nil
+		}
+
+		args := this.parseArgs()
+		if args == nil {
+			return nil
+		}
+
+		var throws []*ServiceMethodArg
+		if this.match(TOK_THROWS) != nil {
+			if throws = this.parseArgs(); throws == nil {
+				return nil
+			}
+		}
+
+		method := &ServiceMethod{
+			OneWay:     oneway,
+			ReturnType: ttype,
+			Name:       name,
+			Args:       args,
+			Throws:     throws,
+		}
+		methods = append(methods, method)
+	}
+
+	return &ServiceNode{
+		Range: Location{
+			Start: start.Loc.Start,
+			End:   this.scanner.Position(),
+		},
+		Name:    name,
+		Extends: extends,
+		Methods: methods,
+	}
+}
+
+// Parse:
+//   const ::= "const" type identifier "=" expr
+func (this *Parser) parseConst(start *Token) *ConstNode {
+	ttype := this.parseType()
+	if ttype == nil {
+		return nil
+	}
+
+	name := this.need(TOK_IDENTIFIER)
+	if name == nil {
+		return nil
+	}
+
+	if this.need(TOK_ASSIGN) == nil {
+		return nil
+	}
+
+	init := this.parseExpr()
+	if init == nil {
+		return nil
+	}
+
+	return &ConstNode{
+		Range: Location{
+			Start: start.Loc.Start,
+			End:   this.scanner.Position(),
+		},
+		Type: ttype,
+		Name: name,
+		Init: init,
+	}
+}
+
+// Parse:
+//   body ::= statement*
+//   statement ::= namespace
+//               | include
+//               | enum
+//               | struct
+//               | service
+//               | const
+func (this *Parser) parse() bool {
+	for {
+		tok := this.scanner.next()
+		switch tok.Kind {
+		case TOK_NAMESPACE:
+			if !this.parseNamespace() {
+				return false
+			}
+
+		case TOK_INCLUDE:
+			if !this.parseInclude() {
+				return false
+			}
+
+		case TOK_ENUM:
+			node := this.parseEnum(tok)
+			if node == nil {
+				return false
+			}
+			this.tree.Nodes = append(this.tree.Nodes, node)
+
+		case TOK_STRUCT:
+			node := this.parseStruct(tok)
+			if node == nil {
+				return false
+			}
+			this.tree.Nodes = append(this.tree.Nodes, node)
+
+		case TOK_SERVICE:
+			node := this.parseService(tok)
+			if node == nil {
+				return false
+			}
+			this.tree.Nodes = append(this.tree.Nodes, node)
+
+		case TOK_CONST:
+			node := this.parseConst(tok)
+			if node == nil {
+				return false
+			}
+			fmt.Printf("%v\n", node)
+			this.tree.Nodes = append(this.tree.Nodes, node)
+
+		case TOK_ERROR:
+			return false
+
+		case TOK_EOF:
+			return true
+
+		default:
+			this.Context.ReportError(tok.Loc.Start, "expected definition, got: %s", tok.String())
+		}
+	}
+}
+
+func (this *Parser) Parse() *ParseTree {
+	if !this.parse() {
+		return nil
+	}
+	if this.Context.HasErrors() {
+		return nil
+	}
+	return this.tree
+}
