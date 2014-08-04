@@ -79,6 +79,11 @@ type StructField struct {
 // Encapsulates struct definition.
 type StructNode struct {
 	Range  Location
+
+	// Either TOK_EXCEPTION or TOK_STRUCT.
+	Kind   *Token
+
+	// Struct/exception name and fields.
 	Name   *Token
 	Fields []*StructField
 }
@@ -195,6 +200,17 @@ type ConstNode struct {
 }
 
 func (this *ConstNode) Loc() Location {
+	return this.Range
+}
+
+// Encapsulates a typedef definition.
+type TypedefNode struct {
+	Range Location
+	Type  Type
+	Name  *Token
+}
+
+func (this *TypedefNode) Loc() Location {
 	return this.Range
 }
 

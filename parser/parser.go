@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -359,6 +358,7 @@ func (this *Parser) parseStruct(start *Token) *StructNode {
 	}
 
 	return &StructNode{
+		Kind: start,
 		Range: Location{
 			Start: start.Loc.Start,
 			End:   this.scanner.Position(),
@@ -477,6 +477,25 @@ func (this *Parser) parseService(start *Token) *ServiceNode {
 	}
 }
 
+func (this *Parser) parseTypedef(start *Token) *TypedefNode {
+	ttype := this.parseType()
+	if ttype == nil {
+		return nil
+	}
+
+	name := this.need(TOK_IDENTIFIER)
+	if name == nil {
+		return nil
+	}
+
+	return &TypedefNode{
+		Range: Location{
+			Start: start.Loc.Start,
+			End: this.scanner.Position(),
+		},
+	}
+}
+
 // Parse:
 //   const ::= "const" type identifier "=" expr
 func (this *Parser) parseConst(start *Token) *ConstNode {
@@ -539,7 +558,7 @@ func (this *Parser) parse() bool {
 			}
 			this.tree.Nodes = append(this.tree.Nodes, node)
 
-		case TOK_STRUCT:
+		case TOK_STRUCT, TOK_EXCEPTION:
 			node := this.parseStruct(tok)
 			if node == nil {
 				return false
@@ -558,7 +577,13 @@ func (this *Parser) parse() bool {
 			if node == nil {
 				return false
 			}
-			fmt.Printf("%v\n", node)
+			this.tree.Nodes = append(this.tree.Nodes, node)
+
+		case TOK_TYPEDEF:
+			node := this.parseTypedef(tok)
+			if node == nil {
+				return false
+			}
 			this.tree.Nodes = append(this.tree.Nodes, node)
 
 		case TOK_ERROR:

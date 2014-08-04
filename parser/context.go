@@ -30,7 +30,7 @@ func NewCompileContext() *CompileContext {
 func (this *CompileContext) splitPath(file string) (string, string) {
 	folder, name := filepath.Split(file)
 
-	index := strings.Index(file, ".thrift")
+	index := strings.LastIndex(name, ".thrift")
 	if index != -1 {
 		name = name[:index]
 	}
@@ -54,10 +54,12 @@ func (this *CompileContext) parse(path string) *ParseTree {
 func (this *CompileContext) ParseRecursive(file string) *ParseTree {
 	folder, name := this.splitPath(file)
 
-	parsed := map[string]*ParseTree{}
 	queue := []string{name}
+	parsed := map[string]*ParseTree{
+		name: nil,
+	}
 
-	for len(queue) > 1 {
+	for len(queue) > 0 {
 		// Pop a file off the queue.
 		name := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
