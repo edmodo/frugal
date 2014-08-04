@@ -2,6 +2,8 @@ package parser
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 )
 
 type CompileError struct {
@@ -15,11 +17,87 @@ type CompileContext struct {
 	CurFile string
 
 	// List of errors encountered so far.
-	Errors  []*CompileError
+	Errors []*CompileError
+
+	Packages map[string]*ParseTree
 }
 
 func NewCompileContext() *CompileContext {
 	return &CompileContext{}
+}
+
+// Return the folder and filename. The filename has ".thrift" stripped.
+func (this *CompileContext) splitPath(file string) (string, string) {
+	folder, name := filepath.Split(file)
+
+	index := strings.Index(file, ".thrift")
+	if index != -1 {
+		name = name[:index]
+	}
+
+	return folder, name
+}
+
+func (this *CompileContext) parse(path string) *ParseTree {
+	this.Enter(path)
+	defer this.Leave()
+
+	parser, err := NewParser(this)
+	if err != nil {
+		this.ReportError(Position{}, "Could not open file: %s", err.Error())
+		return nil
+	}
+
+	return parser.Parse()
+}
+
+func (this *CompileContext) ParseRecursive(file string) *ParseTree {
+	folder, name := this.splitPath(file)
+
+	parsed := map[string]*ParseTree{}
+	queue := []string{name}
+
+	for len(queue) > 1 {
+		// Pop a file off the queue.
+		name := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+
+		// Parse the file.
+		path := filepath.Join(folder, name) + ".thrift"
+		tree := this.parse(path)
+		if tree == nil {
+			return nil
+		}
+
+		// Mark this as parsed.
+		tree.Package = name
+		parsed[name] = tree
+
+		// Enqueue everything that hasn't been parsed.
+		for name, tree := range tree.Includes {
+			if tree != nil {
+				continue
+			}
+
+			_, inQueue := parsed[name]
+			if !inQueue {
+				// Add to the parsing queue, and flag the parsing results with a nil so
+				// we don't add to the queue twice.
+				queue = append(queue, name)
+				parsed[name] = nil
+			}
+		}
+	}
+
+	// If we got here, everything was parsed. Update all the mappings.
+	for _, tree := range parsed {
+		for name, _ := range tree.Includes {
+			tree.Includes[name] = parsed[name]
+		}
+	}
+
+	// Return the root of all parse trees (the first file).
+	return parsed[name]
 }
 
 func (this *CompileContext) Enter(file string) {

@@ -64,13 +64,13 @@ func (this *EnumNode) Loc() Location {
 
 type StructField struct {
 	// The token which contains the order number, or nil if not present.
-	Order   *Token
+	Order *Token
 
 	// A token containing TOK_OPTIONAL or TOK_REQUIRED.
-	Spec    *Token
+	Spec *Token
 
 	// The name of the field.
-	Name    *Token
+	Name *Token
 
 	// The default value, or nil if not present.
 	Default Node
@@ -141,27 +141,27 @@ type ServiceMethodArg struct {
 	Order *Token
 
 	// The type expression of the argument.
-	Type  Type
+	Type Type
 
 	// The token containing the argument name.
-	Name  *Token
+	Name *Token
 }
 
 type ServiceMethod struct {
 	// If non-nil, specifies that the method is one-way.
-	OneWay     *Token
+	OneWay *Token
 
 	// The return type expression of the method.
 	ReturnType Type
 
 	// The name of the method.
-	Name       *Token
+	Name *Token
 
 	// The argument list of the method.
-	Args       []*ServiceMethodArg
+	Args []*ServiceMethodArg
 
 	// The list of throwable errors of the method.
-	Throws     []*ServiceMethodArg
+	Throws []*ServiceMethodArg
 }
 
 // Encapsulates a service definition.
@@ -181,17 +181,17 @@ type ConstNode struct {
 	Range Location
 
 	// The type of the constant variable.
-	Type  Type
+	Type Type
 
 	// The name of the constant variable.
-	Name  *Token
+	Name *Token
 
 	// The initialization value of the constant variable.
 	// This is always one of:
 	//   LiteralNode
 	//   ListNode
 	//   MapNode
-	Init  Node
+	Init Node
 }
 
 func (this *ConstNode) Loc() Location {
@@ -203,14 +203,18 @@ type ParseTree struct {
 	Namespaces map[string]string
 
 	// List of include paths.
-	Includes   []string
+	Includes map[string]*ParseTree
 
 	// Root nodes in the syntax tree.
-	Nodes      []Node
+	Nodes []Node
+
+	// The package name this file would be imported, in thrift.
+	Package string
 }
 
 func NewParseTree() *ParseTree {
 	return &ParseTree{
 		Namespaces: map[string]string{},
+		Includes:   map[string]*ParseTree{},
 	}
 }

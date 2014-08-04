@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -92,7 +93,19 @@ func (this *Parser) parseInclude() bool {
 		return false
 	}
 
-	this.tree.Includes = append(this.tree.Includes, tok.StringLiteral())
+	folder, name := filepath.Split(tok.StringLiteral())
+	if folder != "" {
+		this.Context.ReportError(tok.Loc.Start, "External paths are not yet supported")
+		return false
+	}
+
+	// Take ".thrift" out of the path.
+	index := strings.Index(name, ".thrift")
+	if index != -1 {
+		name = name[:index]
+	}
+
+	this.tree.Includes[name] = nil
 	return true
 }
 
