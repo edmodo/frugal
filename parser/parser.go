@@ -347,6 +347,7 @@ func (this *Parser) parseStruct(start *Token) *StructNode {
 		field := &StructField{
 			Order:   order,
 			Spec:    spec,
+			Type:    ttype,
 			Name:    name,
 			Default: expr,
 		}
@@ -358,7 +359,7 @@ func (this *Parser) parseStruct(start *Token) *StructNode {
 	}
 
 	return &StructNode{
-		Kind: start,
+		Tok: start,
 		Range: Location{
 			Start: start.Loc.Start,
 			End:   this.scanner.Position(),

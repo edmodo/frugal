@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type TokenKind int
 
@@ -153,4 +156,19 @@ func (this *Token) StringLiteral() string {
 		panic("only valid for string tokens")
 	}
 	return this.Data.(string)
+}
+
+func (this *Token) IntLiteral() int64 {
+	if this.Kind != TOK_LITERAL_INT {
+		panic("only valid for integer tokens")
+	}
+	return this.Data.(int64)
+}
+
+func JoinIdentifiers(tokens []*Token) string {
+	strs := []string{}
+	for _, tok := range tokens {
+		strs = append(strs, tok.Identifier())
+	}
+	return strings.Join(strs, ".")
 }

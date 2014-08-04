@@ -20,7 +20,7 @@ type BuiltinType struct {
 }
 
 func (this *BuiltinType) String() string {
-	return this.Tok.String()
+	return this.Tok.Identifier()
 }
 
 // A named type must be resolved to a definition somewhere (for example, users.User).
@@ -29,7 +29,7 @@ type NamedType struct {
 }
 
 func (this *NamedType) String() string {
-	return fmt.Sprintf("%v", this.Path)
+	return JoinIdentifiers(this.Path)
 }
 
 // A list type is list<type>.
@@ -69,6 +69,9 @@ type StructField struct {
 	// A token containing TOK_OPTIONAL or TOK_REQUIRED.
 	Spec *Token
 
+	// The type of the field.
+	Type Type
+
 	// The name of the field.
 	Name *Token
 
@@ -81,7 +84,7 @@ type StructNode struct {
 	Range  Location
 
 	// Either TOK_EXCEPTION or TOK_STRUCT.
-	Kind   *Token
+	Tok    *Token
 
 	// Struct/exception name and fields.
 	Name   *Token
@@ -139,6 +142,10 @@ func (this *NameProxyNode) Loc() Location {
 	first := this.Path[0]
 	last := this.Path[len(this.Path)-1]
 	return Location{first.Loc.Start, last.Loc.End}
+}
+
+func (this *NameProxyNode) String() string {
+	return JoinIdentifiers(this.Path)
 }
 
 type ServiceMethodArg struct {
