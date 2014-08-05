@@ -127,7 +127,7 @@ func (this *Parser) parseInclude() bool {
 func (this *Parser) parseExpr() Node {
 	tok := this.scanner.next()
 	switch tok.Kind {
-	case TOK_LITERAL_STRING, TOK_LITERAL_INT:
+	case TOK_LITERAL_STRING, TOK_LITERAL_INT, TOK_TRUE, TOK_FALSE:
 		return &LiteralNode{tok}
 
 	case TOK_IDENTIFIER:
@@ -265,6 +265,7 @@ func (this *Parser) parseType() Type {
 	switch tok.Kind {
 	case TOK_I32,
 		TOK_I64,
+		TOK_BOOL,
 		TOK_VOID,
 		TOK_STRING,
 		TOK_DOUBLE:

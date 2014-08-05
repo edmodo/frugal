@@ -36,11 +36,13 @@ const (
 	TOK_LITERAL_STRING // "[^"]*"
 
 	// Keywords.
+	TOK_BOOL
 	TOK_CONST
 	TOK_DOUBLE
 	TOK_ENUM
 	TOK_EXCEPTION
 	TOK_EXTENDS
+	TOK_FALSE
 	TOK_I32
 	TOK_I64
 	TOK_INCLUDE
@@ -54,6 +56,7 @@ const (
 	TOK_STRING
 	TOK_STRUCT
 	TOK_THROWS
+	TOK_TRUE
 	TOK_TYPEDEF
 	TOK_VOID
 
@@ -74,11 +77,13 @@ const (
 )
 
 var KeywordMap = map[string]TokenKind{
+	"bool":	     TOK_BOOL,
 	"const":     TOK_CONST,
 	"double":    TOK_DOUBLE,
 	"enum":      TOK_ENUM,
 	"exception": TOK_EXCEPTION,
 	"extends":   TOK_EXTENDS,
+	"false":     TOK_FALSE,
 	"i32":       TOK_I32,
 	"i64":       TOK_I64,
 	"include":   TOK_INCLUDE,
@@ -92,6 +97,7 @@ var KeywordMap = map[string]TokenKind{
 	"string":    TOK_STRING,
 	"struct":    TOK_STRUCT,
 	"throws":    TOK_THROWS,
+	"true":      TOK_TRUE,
 	"typedef":   TOK_TYPEDEF,
 	"void":      TOK_VOID,
 }
@@ -100,11 +106,13 @@ var PrettyPrintMap = map[TokenKind]string{
 	TOK_IDENTIFIER:     "<identifier>",
 	TOK_LITERAL_INT:    "<integer>",
 	TOK_LITERAL_STRING: "<string>",
+	TOK_BOOL:           "bool",
 	TOK_CONST:          "const",
 	TOK_DOUBLE:         "double",
 	TOK_ENUM:           "enum",
 	TOK_EXCEPTION:      "exception",
 	TOK_EXTENDS:        "extends",
+	TOK_FALSE:          "false",
 	TOK_I32:            "i32",
 	TOK_I64:            "i64",
 	TOK_INCLUDE:        "include",
@@ -118,6 +126,7 @@ var PrettyPrintMap = map[TokenKind]string{
 	TOK_STRING:         "string",
 	TOK_STRUCT:         "struct",
 	TOK_THROWS:         "throws",
+	TOK_TRUE:           "true",
 	TOK_TYPEDEF:        "typedef",
 	TOK_VOID:           "void",
 	TOK_LBRACE:         "{",

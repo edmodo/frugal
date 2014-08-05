@@ -36,11 +36,8 @@ func main() {
 			tree.Print(os.Stdout)
 		}
 
-		if !enterSymbols(context, tree) {
-			context.PrintErrors()
-			os.Exit(1)
-		}
-		if !bindNames(context, tree) {
+		trees := parser.FlattenTrees(tree)
+		if !runPhases(context, trees) {
 			context.PrintErrors()
 			os.Exit(1)
 		}

@@ -134,3 +134,27 @@ func (this *CompileContext) PrintErrors() {
 func (this *CompileContext) ReportRedeclaration(pos Position, name *Token) {
 	this.ReportError(pos, "name '%s' was already declared on %s", name.Identifier(), name.Loc.Start)
 }
+
+// Flatten a tree of parse trees into a list, in no particular order.
+func FlattenTrees(tree *ParseTree) []*ParseTree {
+	trees := []*ParseTree{}
+	processed := map[*ParseTree]bool{}
+
+	queue := []*ParseTree{tree}
+	for len(queue) > 0 {
+		item := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+
+		trees = append(trees, item)
+
+		for _, other := range item.Includes {
+			if _, ok := processed[other]; ok {
+				continue
+			}
+			queue = append(queue, other)
+			processed[other] = true
+		}
+	}
+
+	return trees
+}
