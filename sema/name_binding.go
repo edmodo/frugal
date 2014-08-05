@@ -55,7 +55,7 @@ func (this *NameBinder) bindNamesInNode(node Node) {
 
 	case *NameProxyNode:
 		node := node.(*NameProxyNode)
-		node.Node, node.Tail = this.resolvePath(node.Path)
+		node.Binding, node.Tail = this.resolvePath(node.Path)
 
 	case *MapNode:
 		node := node.(*MapNode)
@@ -86,7 +86,7 @@ func (this *NameBinder) bindType(ttype Type) {
 	switch ttype.(type) {
 	case *NameProxyNode:
 		ttype := ttype.(*NameProxyNode)
-		ttype.Node, ttype.Tail = this.resolvePath(ttype.Path)
+		ttype.Binding, ttype.Tail = this.resolvePath(ttype.Path)
 
 	case *ListType:
 		ttype := ttype.(*ListType)

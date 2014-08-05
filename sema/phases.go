@@ -9,6 +9,7 @@ type PhaseCallback func(context *CompileContext, tree *ParseTree) bool
 var compilePhases = []PhaseCallback{
 	enterSymbols,
 	bindNames,
+	typeCheck,
 }
 
 func runPhase(context *CompileContext, phase PhaseCallback, tree *ParseTree) bool {

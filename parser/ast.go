@@ -12,7 +12,12 @@ type Node interface {
 
 // Base interface for all constructs that are parsed as a type expression.
 type Type interface {
+	Loc() Location
 	String() string
+
+	// Reach past all typedefs and return the actual type, and if relevant,
+	// the node as well.
+	Resolve() (Type, Node)
 }
 
 // A builtin type is just a single token (such as i32).
@@ -20,8 +25,16 @@ type BuiltinType struct {
 	Tok *Token
 }
 
+func (this *BuiltinType) Loc() Location {
+	return this.Tok.Loc
+}
+
 func (this *BuiltinType) String() string {
 	return PrettyPrintMap[this.Tok.Kind]
+}
+
+func (this *BuiltinType) Resolve() (Type, Node) {
+	return this, nil
 }
 
 // A list type is list<type>.
@@ -29,8 +42,17 @@ type ListType struct {
 	Inner Type
 }
 
+func (this *ListType) Loc() Location {
+	// Not really correct, we should store a Location.
+	return this.Inner.Loc()
+}
+
 func (this *ListType) String() string {
 	return fmt.Sprintf("list<%s>", this.Inner.String())
+}
+
+func (this *ListType) Resolve() (Type, Node) {
+	return this, nil
 }
 
 // A map type is map<key, value>.
@@ -39,8 +61,17 @@ type MapType struct {
 	Value Type
 }
 
+func (this *MapType) Loc() Location {
+	// Not really correct, we should store a Location.
+	return this.Key.Loc()
+}
+
 func (this *MapType) String() string {
 	return fmt.Sprintf("map<%s,%s>", this.Key.String(), this.Value.String())
+}
+
+func (this *MapType) Resolve() (Type, Node) {
+	return this, nil
 }
 
 type EnumEntry struct {
@@ -189,8 +220,8 @@ type NameProxyNode struct {
 
 	// Node this resolves to, and successive accessors.
 	// Set by semantic analysis.
-	Node Node
-	Tail []*Token
+	Binding Node
+	Tail    []*Token
 }
 
 func NewNameProxyNode(path []*Token) *NameProxyNode {
@@ -211,6 +242,15 @@ func (this *NameProxyNode) Loc() Location {
 
 func (this *NameProxyNode) String() string {
 	return JoinIdentifiers(this.Path)
+}
+
+func (this *NameProxyNode) Resolve() (Type, Node) {
+	// Semantic analysis should have been run, so binding should be valid.
+	if _, ok := this.Binding.(*TypedefNode); ok {
+		typedef := this.Binding.(*TypedefNode)
+		return typedef.Type.Resolve()
+	}
+	return this, this.Binding
 }
 
 type ServiceMethodArg struct {
