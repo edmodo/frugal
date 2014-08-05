@@ -146,7 +146,7 @@ func (this *Token) Name() string {
 
 func (this *Token) Identifier() string {
 	if this.Kind != TOK_IDENTIFIER {
-		panic("only valid for identifier tokens")
+		panic(fmt.Errorf("only valid for identifier tokens (got %s)", this))
 	}
 	return this.Data.(string)
 }

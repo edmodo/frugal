@@ -14,7 +14,7 @@ var (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: file1 file2 file3...\n")
+		fmt.Fprintf(os.Stderr, "Usage: file1 [fileN...]\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()

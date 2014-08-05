@@ -20,7 +20,7 @@ type BuiltinType struct {
 }
 
 func (this *BuiltinType) String() string {
-	return this.Tok.Identifier()
+	return PrettyPrintMap[this.Tok.Kind]
 }
 
 // A named type must be resolved to a definition somewhere (for example, users.User).

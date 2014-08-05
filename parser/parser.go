@@ -494,6 +494,8 @@ func (this *Parser) parseTypedef(start *Token) *TypedefNode {
 			Start: start.Loc.Start,
 			End: this.scanner.Position(),
 		},
+		Type: ttype,
+		Name: name,
 	}
 }
 
