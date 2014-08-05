@@ -189,8 +189,8 @@ type NameProxyNode struct {
 
 	// Node this resolves to, and successive accessors.
 	// Set by semantic analysis.
-	Node   Node
-	Tail   []*Token
+	Node Node
+	Tail []*Token
 }
 
 func NewNameProxyNode(path []*Token) *NameProxyNode {

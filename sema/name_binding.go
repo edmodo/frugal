@@ -13,7 +13,7 @@ type NameBinder struct {
 func bindNames(context *CompileContext, tree *ParseTree) bool {
 	binder := NameBinder{
 		context: context,
-		tree: tree,
+		tree:    tree,
 	}
 	binder.bind()
 	return !context.HasErrors()
@@ -108,7 +108,7 @@ func (this *NameBinder) bindType(ttype Type) {
 // This information is passed to the type checking phase.
 func (this *NameBinder) resolvePath(path []*Token) (Node, []*Token) {
 	root := path[0]
-	
+
 	// Resolve to global symbols first.
 	if _, ok := this.tree.Names[root.Identifier()]; ok {
 		return this.resolvePathInPackage(path, this.tree)

@@ -77,7 +77,7 @@ const (
 )
 
 var KeywordMap = map[string]TokenKind{
-	"bool":	     TOK_BOOL,
+	"bool":      TOK_BOOL,
 	"const":     TOK_CONST,
 	"double":    TOK_DOUBLE,
 	"enum":      TOK_ENUM,
