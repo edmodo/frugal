@@ -21,7 +21,7 @@ func NewParser(context *CompileContext) (*Parser, error) {
 	return &Parser{
 		Context: context,
 		scanner: scanner,
-		tree:    NewParseTree(),
+		tree:    NewParseTree(context.CurFile),
 	}, nil
 }
 
@@ -45,6 +45,16 @@ func (this *Parser) need(kind TokenKind) *Token {
 		return nil
 	}
 	return tok
+}
+
+func (this *Parser) requireTerminator() {
+	// Currently, thrift has no concept of terminators. It allows, optionally,
+	// ',' or ';'. We should consider deviating from the official grammar and
+	// requiring at the very least, a newline.
+	if this.match(TOK_COMMA) != nil {
+		return
+	}
+	this.match(TOK_SEMICOLON)
 }
 
 // Parse the following:
@@ -125,7 +135,7 @@ func (this *Parser) parseExpr() Node {
 		if path == nil {
 			return nil
 		}
-		return &NameProxyNode{path}
+		return NewNameProxyNode(path)
 
 	// Parse a list of expressions.
 	case TOK_LBRACKET:
@@ -137,8 +147,7 @@ func (this *Parser) parseExpr() Node {
 			}
 			exprs = append(exprs, expr)
 
-			// Eat an optional comma.
-			this.match(TOK_COMMA)
+			this.requireTerminator()
 		}
 		return &ListNode{exprs}
 
@@ -165,8 +174,7 @@ func (this *Parser) parseExpr() Node {
 				Value: right,
 			})
 
-			// Eat an optional comma.
-			this.match(TOK_COMMA)
+			this.requireTerminator()
 		}
 		return &MapNode{entries}
 	}
@@ -186,26 +194,36 @@ func (this *Parser) parseEnum(start *Token) *EnumNode {
 		return nil
 	}
 
-	fields := []*Token{}
+	entries := []*EnumEntry{}
 	for this.match(TOK_RBRACE) == nil {
-		field := this.need(TOK_IDENTIFIER)
-		if field == nil {
+		name := this.need(TOK_IDENTIFIER)
+		if name == nil {
 			return nil
 		}
-		fields = append(fields, field)
 
-		// Comma isn't needed, but may be present.
-		this.match(TOK_COMMA)
+		var value *Token
+		if this.match(TOK_ASSIGN) != nil {
+			if value = this.need(TOK_LITERAL_INT); value == nil {
+				return nil
+			}
+		}
+
+		entries = append(entries, &EnumEntry{
+			Name:  name,
+			Value: value,
+		})
+
+		this.requireTerminator()
 	}
 
-	return &EnumNode{
-		Range: Location{
+	return NewEnumNode(
+		Location{
 			Start: start.Loc.Start,
 			End:   this.scanner.Position(),
 		},
-		Name:   name,
-		Fields: fields,
-	}
+		name,
+		entries,
+	)
 }
 
 // Parse the rest of a fully-qualified name.
@@ -231,7 +249,7 @@ func (this *Parser) parseFullName() *NameProxyNode {
 	if path == nil {
 		return nil
 	}
-	return &NameProxyNode{path}
+	return NewNameProxyNode(path)
 }
 
 // Parse the following:
@@ -299,7 +317,7 @@ func (this *Parser) parseType() Type {
 // Parse the following:
 //   struct              ::= "struct" identifier "{" struct-body "}"
 //   struct-body         ::= (struct-member ","?)*
-//   struct-member       ::= struct-member-order? struct-member-spec type identifier ("=" expression)?
+//   struct-member       ::= struct-member-order? struct-member-spec? type identifier ("=" expression)?
 //   struct-member-order ::= integer-literal ":"
 //   struct-member-spec  ::= "required" | "optional"
 //
@@ -321,10 +339,9 @@ func (this *Parser) parseStruct(start *Token) *StructNode {
 			}
 		}
 
-		spec := this.scanner.next()
-		if spec.Kind != TOK_REQUIRED && spec.Kind != TOK_OPTIONAL {
-			this.Context.ReportError(spec.Loc.Start, "expected \"required\" or \"optional\"")
-			return nil
+		spec := this.match(TOK_REQUIRED)
+		if spec == nil {
+			spec = this.match(TOK_OPTIONAL)
 		}
 
 		ttype := this.parseType()
@@ -344,29 +361,26 @@ func (this *Parser) parseStruct(start *Token) *StructNode {
 			}
 		}
 
-		field := &StructField{
+		fields = append(fields, &StructField{
 			Order:   order,
 			Spec:    spec,
 			Type:    ttype,
 			Name:    name,
 			Default: expr,
-		}
+		})
 
-		// Comma isn't needed, but may be present.
-		this.match(TOK_COMMA)
-
-		fields = append(fields, field)
+		this.requireTerminator()
 	}
 
-	return &StructNode{
-		Tok: start,
-		Range: Location{
+	return NewStructNode(
+		Location{
 			Start: start.Loc.Start,
 			End:   this.scanner.Position(),
 		},
-		Name:   name,
-		Fields: fields,
-	}
+		start,
+		name,
+		fields,
+	)
 }
 
 // Parse:
@@ -395,15 +409,13 @@ func (this *Parser) parseArgs() []*ServiceMethodArg {
 			return nil
 		}
 
-		// Eat an optional comma.
-		this.match(TOK_COMMA)
-
-		arg := &ServiceMethodArg{
+		args = append(args, &ServiceMethodArg{
 			Order: order,
 			Type:  ttype,
 			Name:  name,
-		}
-		args = append(args, arg)
+		})
+
+		this.requireTerminator()
 	}
 
 	return args
@@ -492,7 +504,7 @@ func (this *Parser) parseTypedef(start *Token) *TypedefNode {
 	return &TypedefNode{
 		Range: Location{
 			Start: start.Loc.Start,
-			End: this.scanner.Position(),
+			End:   this.scanner.Position(),
 		},
 		Type: ttype,
 		Name: name,

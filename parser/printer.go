@@ -24,7 +24,7 @@ func (this *AstPrinter) indent() {
 }
 
 func (this *AstPrinter) dedent() {
-	this.prefix = this.prefix[:len(this.prefix) - 2]
+	this.prefix = this.prefix[:len(this.prefix)-2]
 }
 
 func (this *AstPrinter) printArg(arg *ServiceMethodArg) {
@@ -120,8 +120,8 @@ func (this *AstPrinter) printNode(node Node) {
 		node := node.(*EnumNode)
 		this.fprintf("[ enum %s\n", node.Name.Identifier())
 		this.indent()
-		for _, field := range node.Fields {
-			this.fprintf("%s\n", field.Identifier())
+		for _, entry := range node.Entries {
+			this.fprintf("%s\n", entry.Name.Identifier())
 		}
 		this.dedent()
 
@@ -160,7 +160,6 @@ func (this *AstPrinter) printNode(node Node) {
 		this.dumpLiteral(node.Init)
 		this.dedent()
 
-
 	case *TypedefNode:
 		node := node.(*TypedefNode)
 		this.fprintf("[ typedef %s as %s\n", node.Type.String(), node.Name.Identifier())
@@ -172,7 +171,7 @@ func (this *AstPrinter) printNode(node Node) {
 
 func (this *ParseTree) Print(fp io.Writer) {
 	printer := AstPrinter{
-		fp: fp,
+		fp:   fp,
 		tree: this,
 	}
 	printer.print()

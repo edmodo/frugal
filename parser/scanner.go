@@ -303,6 +303,8 @@ func (this *Scanner) scan() *Token {
 		tok.Kind = TOK_DOT
 	case ',':
 		tok.Kind = TOK_COMMA
+	case ';':
+		tok.Kind = TOK_SEMICOLON
 	case '"':
 		tok.Kind, tok.Data = this.readStringLiteral(c)
 	default:

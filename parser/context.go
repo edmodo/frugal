@@ -130,3 +130,7 @@ func (this *CompileContext) PrintErrors() {
 		fmt.Printf("%s (line %d, col %d): %s\n", err.File, err.Pos.Line, err.Pos.Col, err.Message)
 	}
 }
+
+func (this *CompileContext) ReportRedeclaration(pos Position, name *Token) {
+	this.ReportError(pos, "name '%s' was already declared on %s", name.Identifier(), name.Loc.Start)
+}

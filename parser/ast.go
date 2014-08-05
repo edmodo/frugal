@@ -7,6 +7,7 @@ import (
 // Base interface for all AST nodes.
 type Node interface {
 	Loc() Location
+	NodeType() string
 }
 
 // Base interface for all constructs that are parsed as a type expression.
@@ -51,15 +52,42 @@ func (this *MapType) String() string {
 	return fmt.Sprintf("map<%s,%s>", this.Key.String(), this.Value.String())
 }
 
+type EnumEntry struct {
+	// Name token (always an identifier).
+	Name *Token
+
+	// Initializer (nil, or a TOK_LITERAL_INT).
+	Value *Token
+
+	// Constant value, filled in by semantic analysis.
+	ConstVal int32
+}
+
 // Encapsulates an enum definition.
 type EnumNode struct {
-	Range  Location
-	Name   *Token
-	Fields []*Token
+	Range   Location
+	Name    *Token
+	Entries []*EnumEntry
+
+	// Map from name -> Entry. Filled in by semantic analysis.
+	Names map[string]*EnumEntry
+}
+
+func NewEnumNode(loc Location, name *Token, fields []*EnumEntry) *EnumNode {
+	return &EnumNode{
+		Range:   loc,
+		Name:    name,
+		Entries: fields,
+		Names:   map[string]*EnumEntry{},
+	}
 }
 
 func (this *EnumNode) Loc() Location {
 	return this.Range
+}
+
+func (this *EnumNode) NodeType() string {
+	return "enum"
 }
 
 type StructField struct {
@@ -81,14 +109,31 @@ type StructField struct {
 
 // Encapsulates struct definition.
 type StructNode struct {
-	Range  Location
+	Range Location
 
 	// Either TOK_EXCEPTION or TOK_STRUCT.
-	Tok    *Token
+	Tok *Token
 
 	// Struct/exception name and fields.
 	Name   *Token
 	Fields []*StructField
+
+	// Map from name -> StructField. Filled in by semantic analysis.
+	Names map[string]*StructField
+}
+
+func NewStructNode(loc Location, kind *Token, name *Token, fields []*StructField) *StructNode {
+	return &StructNode{
+		Range:  loc,
+		Tok:    kind,
+		Name:   name,
+		Fields: fields,
+		Names:  map[string]*StructField{},
+	}
+}
+
+func (this *StructNode) NodeType() string {
+	return PrettyPrintMap[this.Tok.Kind]
 }
 
 func (this *StructNode) Loc() Location {
@@ -105,6 +150,10 @@ func (this *LiteralNode) Loc() Location {
 	return this.Lit.Loc
 }
 
+func (this *LiteralNode) NodeType() string {
+	return "literal"
+}
+
 // A sequence of expressions.
 type ListNode struct {
 	Exprs []Node
@@ -117,11 +166,16 @@ func (this *ListNode) Loc() Location {
 	}
 }
 
+func (this *ListNode) NodeType() string {
+	return "list"
+}
+
 // A sequence of expression pairs, in a key-value mapping.
 type MapNodeEntry struct {
 	Key   Node
 	Value Node
 }
+
 type MapNode struct {
 	Entries []MapNodeEntry
 }
@@ -133,9 +187,27 @@ func (this *MapNode) Loc() Location {
 	}
 }
 
+func (this *MapNode) NodeType() string {
+	return "map"
+}
+
 // Encapsulates a name or path of names.
 type NameProxyNode struct {
+	// Path components.
 	Path []*Token
+
+	// Node that this name binds to.
+	Node Node
+}
+
+func NewNameProxyNode(path []*Token) *NameProxyNode {
+	return &NameProxyNode{
+		Path: path,
+	}
+}
+
+func (this *NameProxyNode) NodeType() string {
+	return "name"
 }
 
 func (this *NameProxyNode) Loc() Location {
@@ -174,6 +246,9 @@ type ServiceMethod struct {
 
 	// The list of throwable errors of the method.
 	Throws []*ServiceMethodArg
+
+	// Map of name -> argument. Filled in by semantic analysis.
+	Names map[string]*ServiceMethodArg
 }
 
 // Encapsulates a service definition.
@@ -186,6 +261,10 @@ type ServiceNode struct {
 
 func (this *ServiceNode) Loc() Location {
 	return this.Range
+}
+
+func (this *ServiceNode) NodeType() string {
+	return "service"
 }
 
 // Encapsulates a constant variable definition.
@@ -210,6 +289,10 @@ func (this *ConstNode) Loc() Location {
 	return this.Range
 }
 
+func (this *ConstNode) NodeType() string {
+	return "constant"
+}
+
 // Encapsulates a typedef definition.
 type TypedefNode struct {
 	Range Location
@@ -219,6 +302,10 @@ type TypedefNode struct {
 
 func (this *TypedefNode) Loc() Location {
 	return this.Range
+}
+
+func (this *TypedefNode) NodeType() string {
+	return "typedef"
 }
 
 type ParseTree struct {
@@ -231,13 +318,21 @@ type ParseTree struct {
 	// Root nodes in the syntax tree.
 	Nodes []Node
 
+	// The original file path.
+	Path string
+
 	// The package name this file would be imported, in thrift.
 	Package string
+
+	// Name to node mapping, filled in by semantic analysis.
+	Names map[string]Node
 }
 
-func NewParseTree() *ParseTree {
+func NewParseTree(file string) *ParseTree {
 	return &ParseTree{
 		Namespaces: map[string]string{},
 		Includes:   map[string]*ParseTree{},
+		Path:       file,
+		Names:      map[string]Node{},
 	}
 }

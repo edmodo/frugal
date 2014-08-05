@@ -35,5 +35,10 @@ func main() {
 		if *dumpFlag {
 			tree.Print(os.Stdout)
 		}
+
+		if !enterSymbols(context, tree) {
+			context.PrintErrors()
+			os.Exit(1)
+		}
 	}
 }

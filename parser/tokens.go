@@ -12,6 +12,10 @@ type Position struct {
 	Col  int
 }
 
+func (this Position) String() string {
+	return fmt.Sprintf("line %d, col %d", this.Line, this.Col)
+}
+
 type Location struct {
 	Start Position
 	End   Position
@@ -66,6 +70,7 @@ const (
 	TOK_COLON
 	TOK_DOT
 	TOK_COMMA
+	TOK_SEMICOLON
 )
 
 var KeywordMap = map[string]TokenKind{
@@ -127,6 +132,7 @@ var PrettyPrintMap = map[TokenKind]string{
 	TOK_COLON:          ":",
 	TOK_DOT:            ".",
 	TOK_COMMA:          ",",
+	TOK_SEMICOLON:      ";",
 }
 
 // Pretty-prints the token to a string.
