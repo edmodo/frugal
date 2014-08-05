@@ -176,6 +176,20 @@ func (this *LiteralNode) NodeType() string {
 	return "literal"
 }
 
+func (this *LiteralNode) TypeString() string {
+	switch this.Lit.Kind {
+	case TOK_TRUE, TOK_FALSE:
+		return "bool"
+	case TOK_LITERAL_STRING:
+		return "string"
+	case TOK_LITERAL_INT:
+		return "integer"
+	case TOK_VOID:
+		return "void"
+	}
+	return "<unknown>"
+}
+
 // A sequence of expressions.
 type ListNode struct {
 	Exprs []Node
