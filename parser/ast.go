@@ -24,15 +24,6 @@ func (this *BuiltinType) String() string {
 	return PrettyPrintMap[this.Tok.Kind]
 }
 
-// A named type must be resolved to a definition somewhere (for example, users.User).
-type NamedType struct {
-	Path []*Token
-}
-
-func (this *NamedType) String() string {
-	return JoinIdentifiers(this.Path)
-}
-
 // A list type is list<type>.
 type ListType struct {
 	Inner Type
@@ -196,8 +187,10 @@ type NameProxyNode struct {
 	// Path components.
 	Path []*Token
 
-	// Node that this name binds to.
-	Node Node
+	// Node this resolves to, and successive accessors.
+	// Set by semantic analysis.
+	Node   Node
+	Tail   []*Token
 }
 
 func NewNameProxyNode(path []*Token) *NameProxyNode {
@@ -246,9 +239,6 @@ type ServiceMethod struct {
 
 	// The list of throwable errors of the method.
 	Throws []*ServiceMethodArg
-
-	// Map of name -> argument. Filled in by semantic analysis.
-	Names map[string]*ServiceMethodArg
 }
 
 // Encapsulates a service definition.

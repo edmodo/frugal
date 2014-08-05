@@ -40,5 +40,9 @@ func main() {
 			context.PrintErrors()
 			os.Exit(1)
 		}
+		if !bindNames(context, tree) {
+			context.PrintErrors()
+			os.Exit(1)
+		}
 	}
 }

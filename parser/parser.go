@@ -275,7 +275,7 @@ func (this *Parser) parseType() Type {
 		if path == nil {
 			return nil
 		}
-		return &NamedType{path}
+		return NewNameProxyNode(path)
 
 	// list<type>
 	case TOK_LIST:
