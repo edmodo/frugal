@@ -22,7 +22,7 @@ func runPhase(context *CompileContext, phase PhaseCallback, tree *ParseTree) boo
 func runPhases(context *CompileContext, trees []*ParseTree) bool {
 	for _, phase := range compilePhases {
 		for _, tree := range trees {
-			if runPhase(context, phase, tree) {
+			if !runPhase(context, phase, tree) {
 				return false
 			}
 		}
