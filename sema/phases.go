@@ -11,10 +11,17 @@ var compilePhases = []PhaseCallback{
 	bindNames,
 }
 
+func runPhase(context *CompileContext, phase PhaseCallback, tree *ParseTree) bool {
+	context.Enter(tree.Path)
+	defer context.Leave()
+
+	return phase(context, tree)
+}
+
 func runPhases(context *CompileContext, trees []*ParseTree) bool {
 	for _, phase := range compilePhases {
 		for _, tree := range trees {
-			if !phase(context, tree) {
+			if runPhase(context, phase, tree) {
 				return false
 			}
 		}

@@ -6,9 +6,6 @@ import (
 
 // Enter all symbols into their scopes.
 func enterSymbols(context *CompileContext, tree *ParseTree) bool {
-	context.Enter(tree.Path)
-	defer context.Leave()
-
 	for _, node := range tree.Nodes {
 		enterSymbolsForNode(context, tree, node)
 	}
