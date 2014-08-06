@@ -63,14 +63,14 @@ func (this *Generator) Dedent() {
 }
 
 // Writes a raw string to the output buffer.
-func (this *Generator) Emit(str string) {
-	this.buffer.WriteString(str)
+func (this *Generator) Emit(sfmt string, args ...interface{}) {
+	this.buffer.WriteString(fmt.Sprintf(sfmt, args...))
 }
 
 // Write a line, emitting an indent prefix beforehand.
 func (this *Generator) Writeln(sfmt string, args ...interface{}) {
 	this.EmitPrefix()
-	this.Emit(fmt.Sprintf(sfmt, args...))
+	this.Emit(sfmt, args...)
 	this.Emit("\n")
 }
 
