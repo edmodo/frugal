@@ -320,6 +320,25 @@ func (this *ServiceNode) NodeType() string {
 	return "service"
 }
 
+// Return the base service, if any. Only valid after semantic analysis.
+func (this *ServiceNode) BaseService() *ServiceNode {
+	if this.Extends == nil {
+		return nil
+	}
+
+	return this.Extends.Binding.(*ServiceNode)
+}
+
+// Returns the entire inheritance chain. Only valid after semantic analysis.
+// The derived-most service is first in the list.
+func (this *ServiceNode) InheritanceChain() []*ServiceNode {
+	chain := []*ServiceNode{}
+	for current := this; current != nil; current = current.BaseService() {
+		chain = append(chain, current)
+	}
+	return chain
+}
+
 // Encapsulates a constant variable definition.
 type ConstNode struct {
 	Range Location
