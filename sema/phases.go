@@ -30,3 +30,8 @@ func runPhases(context *CompileContext, trees []*ParseTree) bool {
 	}
 	return true
 }
+
+func Analyze(context *CompileContext, tree *ParseTree) bool {
+	trees := FlattenTrees(tree)
+	return runPhases(context, trees)
+}

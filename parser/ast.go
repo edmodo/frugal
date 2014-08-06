@@ -116,7 +116,7 @@ type StructField struct {
 	// The token which contains the order number, or nil if not present.
 	Order *Token
 
-	// A token containing TOK_OPTIONAL or TOK_REQUIRED.
+	// A token containing TOK_OPTIONAL or TOK_REQUIRED, or nil (required).
 	Spec *Token
 
 	// The type of the field.
@@ -125,7 +125,8 @@ type StructField struct {
 	// The name of the field.
 	Name *Token
 
-	// The default value, or nil if not present.
+	// The default value, or nil if not present. After semantic analysis, this is
+	// converted to a ValueNode.
 	Default Node
 }
 
@@ -193,6 +194,10 @@ func (this *LiteralNode) TypeString() string {
 // A sequence of expressions.
 type ListNode struct {
 	Exprs []Node
+
+	// After semantic analysis, this contains the resolved values for each
+	// expression.
+	Values []*ValueNode
 }
 
 func (this *ListNode) Loc() Location {
@@ -210,17 +215,21 @@ func (this *ListNode) NodeType() string {
 type MapNodeEntry struct {
 	Key   Node
 	Value Node
+
+	// If this is resolved as a map, these are filled in by semantic analysis as
+	// part of type resolution. Otherwise - such as for structs - they are left
+	// nil.
+	KeyVal   *ValueNode
+	ValueVal *ValueNode
 }
 
 type MapNode struct {
+	Range   Location
 	Entries []MapNodeEntry
 }
 
 func (this *MapNode) Loc() Location {
-	return Location{
-		Start: this.Entries[0].Key.Loc().Start,
-		End:   this.Entries[len(this.Entries)-1].Value.Loc().End,
-	}
+	return this.Range
 }
 
 func (this *MapNode) NodeType() string {
@@ -326,6 +335,8 @@ type ConstNode struct {
 	//   LiteralNode
 	//   ListNode
 	//   MapNode
+	//
+	// After semantic analysis, this is converted to a ValueNode.
 	Init Node
 }
 
@@ -350,6 +361,37 @@ func (this *TypedefNode) Loc() Location {
 
 func (this *TypedefNode) NodeType() string {
 	return "typedef"
+}
+
+type StructInitializer map[*StructField]*ValueNode
+
+// A Value node is not constructed by the parser. It is produced by Semantic
+// Analysis during type checking, to replace NameProxy nodes that resolve to
+// enum fields.
+type ValueNode struct {
+	Original Node
+
+	// Describes the type below.
+	Type TokenKind
+
+	// One of:
+	//   A bool true/false. (Type = BOOL)
+	//   An i32. (Type = I32)
+	//   An i64. (Type = I64)
+	//   A string. (Type = STRING)
+	//   A *ListNode. (Type = LIST)
+	//   A *MapNode. (Type = MAP)
+	//   An *EnumEntry. (Type = ENUM)
+	//   A StructInitializer. (Type = STRUCT)
+	Result interface{}
+}
+
+func (this *ValueNode) Loc() Location {
+	return this.Original.Loc()
+}
+
+func (this *ValueNode) NodeType() string {
+	return "value"
 }
 
 type ParseTree struct {

@@ -12,7 +12,7 @@ type TypeChecker struct {
 func typeCheck(context *CompileContext, tree *ParseTree) bool {
 	checker := TypeChecker{
 		context: context,
-		tree: tree,
+		tree:    tree,
 	}
 	return checker.check()
 }
@@ -27,7 +27,7 @@ func (this *TypeChecker) checkNode(node Node) {
 	case *ConstNode:
 		node := node.(*ConstNode)
 		this.affirmType(node.Type)
-		this.checkType(node.Type, node.Init)
+		node.Init = this.checkType(node.Type, node.Init)
 
 	case *StructNode:
 		node := node.(*StructNode)
@@ -55,7 +55,7 @@ func (this *TypeChecker) affirmType(ttype Type) bool {
 	case *NameProxyNode:
 		// We're referencing a defined type by name. Make sure it's actually a type.
 		node := ttype.(*NameProxyNode)
-		if this.checkNodeDeclaresType(node.Binding) {
+		if this.isNodeATypeDeclaration(node.Binding) {
 			// tail > 0 would indicate that there are extra components in the path.
 			// thrift IDL has no way to nest type names (i.e. you cannot declare
 			// types inside a struct).
@@ -89,9 +89,9 @@ func (this *TypeChecker) affirmType(ttype Type) bool {
 	return false
 }
 
-func (this *TypeChecker) checkNodeDeclaresType(node Node) bool {
+func (this *TypeChecker) isNodeATypeDeclaration(node Node) bool {
 	switch node.(type) {
-	case *StructNode, *TypedefNode:
+	case *StructNode, *TypedefNode, *EnumNode:
 		return true
 
 	default:
@@ -100,7 +100,7 @@ func (this *TypeChecker) checkNodeDeclaresType(node Node) bool {
 }
 
 // Check that the value node can be assigned to the given type.
-func (this *TypeChecker) checkType(ttype Type, value Node) bool {
+func (this *TypeChecker) checkType(ttype Type, value Node) *ValueNode {
 	// Reach past any typedefs.
 	ttype, _ = ttype.Resolve()
 
@@ -119,16 +119,18 @@ func (this *TypeChecker) checkType(ttype Type, value Node) bool {
 
 	case *NameProxyNode:
 		ttype := ttype.(*NameProxyNode)
-		this.context.ReportError(
-			ttype.Loc().Start,
-			"cannot use type '%s' here",
-			ttype.String(),
-		)
-		return false
+
+		if enum, ok := ttype.Binding.(*EnumNode); ok {
+			return this.checkEnumType(enum, value)
+		}
+		if tstruct, ok := ttype.Binding.(*StructNode); ok {
+			return this.checkStructType(tstruct, value)
+		}
+		this.context.ReportError(ttype.Loc().Start, "cannot use type '%s' here", ttype.String())
+		return nil
 	}
 
 	panic("unexpected type")
-	return false
 }
 
 // Checks whether a literal integer can be coerced to a 32-bit integer.
@@ -146,35 +148,36 @@ func (this *TypeChecker) toI32(lit *Token) (int32, bool) {
 }
 
 // Check assignment of a value to a builtin type.
-func (this *TypeChecker) checkBuiltinType(ttype *BuiltinType, value Node) bool {
+func (this *TypeChecker) checkBuiltinType(ttype *BuiltinType, value Node) *ValueNode {
 	lit, ok := value.(*LiteralNode)
 	if !ok {
-		this.context.ReportError(
-			value.Loc().Start,
-			"cannot coerce '%s' to type '%s'",
-			value.NodeType(),
-			ttype.String(),
-		)
-		return false
+		this.context.ReportError(value.Loc().Start, "cannot coerce '%s' to type '%s'", value.NodeType(), ttype.String())
+		return nil
 	}
 
 	switch ttype.Tok.Kind {
 	case TOK_BOOL:
-		if lit.Lit.Kind == TOK_TRUE || lit.Lit.Kind == TOK_FALSE {
-			return true
+		if lit.Lit.Kind == TOK_TRUE {
+			return &ValueNode{value, TOK_BOOL, true}
+		}
+		if lit.Lit.Kind == TOK_FALSE {
+			return &ValueNode{value, TOK_BOOL, false}
 		}
 	case TOK_I32:
 		if lit.Lit.Kind == TOK_LITERAL_INT {
-			_, ok := this.toI32(lit.Lit)
-			return ok
+			i32, ok := this.toI32(lit.Lit)
+			if !ok {
+				return nil
+			}
+			return &ValueNode{value, TOK_I32, i32}
 		}
 	case TOK_I64:
 		if lit.Lit.Kind == TOK_LITERAL_INT {
-			return true
+			return &ValueNode{value, TOK_I64, lit.Lit.IntLiteral()}
 		}
 	case TOK_STRING:
 		if lit.Lit.Kind == TOK_LITERAL_STRING {
-			return true
+			return &ValueNode{value, TOK_STRING, lit.Lit.StringLiteral()}
 		}
 	}
 
@@ -184,51 +187,172 @@ func (this *TypeChecker) checkBuiltinType(ttype *BuiltinType, value Node) bool {
 		lit.TypeString(),
 		ttype.String(),
 	)
-	return false
+	return nil
 }
 
 // Check assignment of a value to a list type.
-func (this *TypeChecker) checkListType(ttype *ListType, value Node) bool {
+func (this *TypeChecker) checkListType(ttype *ListType, value Node) *ValueNode {
 	list, ok := value.(*ListNode)
 	if !ok {
-		this.context.ReportError(
-			value.Loc().Start,
-			"cannot coerce '%s' to a list",
-			value.NodeType(),
-		)
-		return false
+		this.context.ReportError(value.Loc().Start, "cannot coerce '%s' to a list", value.NodeType())
+		return nil
 	}
 
 	for _, expr := range list.Exprs {
-		if !this.checkType(ttype.Inner, expr) {
-			return false
+		value := this.checkType(ttype.Inner, expr)
+		if value == nil {
+			return nil
 		}
+		list.Values = append(list.Values, value)
 	}
 
-	return true
+	// Wrap the list into a value node.
+	return &ValueNode{list, TOK_LIST, list}
 }
 
-func (this *TypeChecker) checkMapType(ttype *MapType, value Node) bool {
-	list, ok := value.(*MapNode)
+func (this *TypeChecker) checkMapType(ttype *MapType, value Node) *ValueNode {
+	tmap, ok := value.(*MapNode)
 	if !ok {
+		this.context.ReportError(value.Loc().Start, "cannot coerce '%s' to a map", value.NodeType())
+		return nil
+	}
+
+	// Check and resolve each key/value in the map.
+	for _, entry := range tmap.Entries {
+		keyVal := this.checkType(ttype.Key, entry.Key)
+		if keyVal == nil {
+			return nil
+		}
+		valueVal := this.checkType(ttype.Value, entry.Value)
+		if valueVal == nil {
+			return nil
+		}
+		entry.KeyVal = keyVal
+		entry.ValueVal = valueVal
+	}
+
+	// Wrap the map into a value node.
+	return &ValueNode{tmap, TOK_MAP, tmap}
+}
+
+func (this *TypeChecker) checkStructType(tstruct *StructNode, inValue Node) *ValueNode {
+	// This uses the same initialization syntax as maps.
+	value, ok := inValue.(*MapNode)
+	if !ok {
+		this.context.ReportError(inValue.Loc().Start, "value should be a struct initializer")
+		return nil
+	}
+
+	init := StructInitializer{}
+	for _, entry := range value.Entries {
+		lit, ok := entry.Key.(*LiteralNode)
+		if !ok || lit.Lit.Kind != TOK_LITERAL_STRING {
+			this.context.ReportError(entry.Key.Loc().Start, "expected a string literal with a struct field")
+			return nil
+		}
+
+		fieldName := lit.Lit.StringLiteral()
+		field, ok := tstruct.Names[fieldName]
+		if !ok {
+			this.context.ReportError(
+				entry.Key.Loc().Start,
+				"field '%s' not found in struct '%s'",
+				fieldName,
+				tstruct.Name.Identifier(),
+			)
+			return nil
+		}
+
+		newval := this.checkType(field.Type, entry.Value)
+		if newval == nil {
+			return nil
+		}
+		init[field] = newval
+	}
+
+	// Warn about any required fields that are not present.
+	for _, field := range tstruct.Fields {
+		if field.Spec != nil && field.Spec.Kind != TOK_REQUIRED {
+			continue
+		}
+		if field.Default != nil {
+			continue
+		}
+
+		if _, ok := init[field]; !ok {
+			this.context.ReportError(
+				value.Loc().Start,
+				"required field '%s' in struct '%s' is not initialized",
+				field.Name.Identifier(),
+				tstruct.Name.Identifier(),
+			)
+		}
+	}
+
+	return &ValueNode{value, TOK_STRUCT, init}
+}
+
+func (this *TypeChecker) checkEnumType(enum *EnumNode, inValue Node) *ValueNode {
+	// We're assigning to an enum; only a name referencing an enum field can do that.
+	value, ok := inValue.(*NameProxyNode)
+	if !ok {
+		this.context.ReportError(inValue.Loc().Start, "value is not a member of enum '%s'", enum.Name.Identifier())
+		return nil
+	}
+
+	other, ok := value.Binding.(*EnumNode)
+	if !ok {
+		this.context.ReportError(value.Loc().Start, "value is not a member of enum '%s'", enum.Name.Identifier())
+		return nil
+	}
+
+	// Check that we're not trying to use an enum definition as a value.
+	if len(value.Tail) == 0 {
 		this.context.ReportError(
 			value.Loc().Start,
-			"cannot coerce '%s' to a map",
-			value.NodeType(),
+			"cannot use enum '%s' as a value",
+			other.Name.Identifier(),
 		)
-		return false
+		return nil
 	}
 
-	for _, entry := range list.Entries {
-		if !this.checkType(ttype.Key, entry.Key) {
-			return false
-		}
-		if !this.checkType(ttype.Value, entry.Value) {
-			return false
-		}
+	// Check that we're not trying to access members of enum fields.
+	if len(value.Tail) > 1 {
+		this.context.ReportError(
+			value.Loc().Start,
+			"%s is not a member of enum '%s'",
+			JoinIdentifiers(value.Tail),
+			other.Name.Identifier(),
+		)
+		return nil
 	}
 
-	return true
+	// Look up the final path component in the enum.
+	name := value.Tail[0]
+	entry, ok := other.Names[name.Identifier()]
+	if !ok {
+		this.context.ReportError(
+			name.Loc.Start,
+			"%s is not a member of enum '%s'",
+			name,
+			other.Name.Identifier(),
+		)
+		return nil
+	}
+
+	// Make sure it's the same enum. We do this after we fetch the field, in order
+	// to report any name access errors.
+	if other != enum {
+		this.context.ReportError(
+			value.Loc().Start,
+			"cannot coerce enum '%s' to enum '%s'",
+			other.Name.Identifier(),
+			enum.Name.Identifier(),
+		)
+		return nil
+	}
+
+	return &ValueNode{value, TOK_ENUM, entry}
 }
 
 // Check that a type is not void.
@@ -284,7 +408,7 @@ func (this *TypeChecker) checkStruct(node *StructNode) {
 		this.checkNotVoid(field.Type)
 
 		if field.Default != nil {
-			this.checkType(field.Type, field.Default)
+			field.Default = this.checkType(field.Type, field.Default)
 		}
 	}
 }

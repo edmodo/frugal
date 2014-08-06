@@ -12,7 +12,7 @@ type CyclicChecker struct {
 func cyclicCheck(context *CompileContext, tree *ParseTree) bool {
 	checker := &CyclicChecker{
 		context: context,
-		tree: tree,
+		tree:    tree,
 	}
 	return checker.check()
 }
@@ -56,7 +56,7 @@ func (this *CyclicChecker) findNestedType(ttype Type, target *StructNode) bool {
 			return true
 		}
 
-		// Search the struct's fields 
+		// Search the struct's fields
 		for _, field := range node.Fields {
 			if this.findNestedType(field.Type, target) {
 				return true

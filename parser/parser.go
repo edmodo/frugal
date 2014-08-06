@@ -149,10 +149,11 @@ func (this *Parser) parseExpr() Node {
 
 			this.requireTerminator()
 		}
-		return &ListNode{exprs}
+		return &ListNode{exprs, nil}
 
 	// Parse a list of key-value pairs.
 	case TOK_LBRACE:
+		start := tok.Loc.Start
 		entries := []MapNodeEntry{}
 		for this.match(TOK_RBRACE) == nil {
 			left := this.parseExpr()
@@ -176,7 +177,13 @@ func (this *Parser) parseExpr() Node {
 
 			this.requireTerminator()
 		}
-		return &MapNode{entries}
+		return &MapNode{
+			Location{
+				Start: start,
+				End:   this.scanner.Position(),
+			},
+			entries,
+		}
 	}
 
 	this.Context.ReportError(tok.Loc.Start, "expected a constant expression, got %s", tok.String())

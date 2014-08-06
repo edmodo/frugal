@@ -36,8 +36,7 @@ func main() {
 			tree.Print(os.Stdout)
 		}
 
-		trees := parser.FlattenTrees(tree)
-		if !runPhases(context, trees) {
+		if !Analyze(context, tree) {
 			context.PrintErrors()
 			os.Exit(1)
 		}
