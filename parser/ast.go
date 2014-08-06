@@ -247,6 +247,12 @@ type NameProxyNode struct {
 	Import    *ParseTree
 
 	// The node this name is bound to. Set by semantic analysis.
+	//
+	// Note that thrift doesn't allow reaching through imports, i.e. with file x.thrift:
+	//   include "y.thrift"
+	//
+	// Another file could not access "x.y". Therefore, a code generator can always
+	// use Import to determine the path to compute.
 	Binding   Node
 
 	// The remaining components of Path after resolving it to a Node. For example
@@ -455,7 +461,7 @@ type ParseTree struct {
 	Names map[string]Node
 
 	// Set of which includes are used. Filled in by semantic analysis.
-	UsedIncludes map[string]bool
+	UsedIncludes map[string]*ParseTree
 }
 
 func NewParseTree(file string) *ParseTree {
@@ -464,6 +470,6 @@ func NewParseTree(file string) *ParseTree {
 		Includes:     map[string]*Include{},
 		Path:         file,
 		Names:        map[string]Node{},
-		UsedIncludes: map[string]bool{},
+		UsedIncludes: map[string]*ParseTree{},
 	}
 }
