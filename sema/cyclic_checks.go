@@ -85,6 +85,10 @@ func (this *CyclicChecker) checkCyclicStruct(node *StructNode) {
 }
 
 func (this *CyclicChecker) checkCyclicService(node *ServiceNode) {
+	if node.Extends == nil {
+		return
+	}
+
 	parent := node.Extends.Binding.(*ServiceNode)
 	for {
 		if parent == node {

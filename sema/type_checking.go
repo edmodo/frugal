@@ -128,15 +128,15 @@ func (this *TypeChecker) checkType(ttype Type, value Node) bool {
 }
 
 // Checks whether a literal integer can be coerced to a 32-bit integer.
-func (this *TypeChecker) toI32(lit *LiteralNode) (int32, bool) {
-	value := int32(lit.Lit.IntLiteral())
-	if int64(value) == lit.Lit.IntLiteral() {
+func (this *TypeChecker) toI32(lit *Token) (int32, bool) {
+	value := int32(lit.IntLiteral())
+	if int64(value) == lit.IntLiteral() {
 		return value, true
 	}
 	this.context.ReportError(
-		lit.Loc().Start,
+		lit.Loc.Start,
 		"value '%d' does not fit in a 32-bit integer",
-		lit.Lit.IntLiteral(),
+		lit.IntLiteral(),
 	)
 	return 0, false
 }
@@ -161,7 +161,7 @@ func (this *TypeChecker) checkBuiltinType(ttype *BuiltinType, value Node) bool {
 		}
 	case TOK_I32:
 		if lit.Lit.Kind == TOK_LITERAL_INT {
-			_, ok := this.toI32(lit)
+			_, ok := this.toI32(lit.Lit)
 			return ok
 		}
 	case TOK_I64:
@@ -241,8 +241,41 @@ func (this *TypeChecker) checkNotVoid(ttype Type) {
 }
 
 func (this *TypeChecker) checkStruct(node *StructNode) {
+	orders := map[int32]*StructField{}
+
 	for _, field := range node.Fields {
-		// :TODO: check order
+		if field.Order == nil {
+			// Upstream thrift has this as a warning. That seems pointless, so we error.
+			this.context.ReportError(
+				field.Name.Loc.Start,
+				"field '%s' should have an explicit order, for better compatibility",
+				field.Name.Identifier(),
+			)
+		} else {
+			// Check that the order number has not already been seen.
+			if order, ok := this.toI32(field.Order); ok {
+				if prev, ok := orders[order]; ok {
+					this.context.ReportError(
+						field.Order.Loc.Start,
+						"field '%s' has the same ordering as field '%s'",
+						field.Name.Identifier(),
+						prev.Name.Identifier(),
+					)
+				} else {
+					orders[order] = field
+				}
+
+				// The order cannot be a negative number.
+				if order <= 0 {
+					this.context.ReportError(
+						field.Order.Loc.Start,
+						"field '%s' must be an integer greater than 0",
+						field.Name.Identifier(),
+					)
+				}
+			}
+		}
+
 		this.affirmType(field.Type)
 		this.checkNotVoid(field.Type)
 
@@ -275,6 +308,7 @@ func (this *TypeChecker) checkService(node *ServiceNode) {
 			this.affirmType(arg.Type)
 			this.checkNotVoid(arg.Type)
 		}
+		this.checkOrdering(method.Args, "argument")
 
 		// Check exception types.
 		for _, throws := range method.Throws {
@@ -303,6 +337,53 @@ func (this *TypeChecker) checkService(node *ServiceNode) {
 				)
 				continue
 			}
+		}
+		this.checkOrdering(method.Throws, "exception")
+	}
+}
+
+func (this *TypeChecker) checkOrdering(args []*ServiceMethodArg, kind string) {
+	orders := map[int32]*ServiceMethodArg{}
+
+	for _, arg := range args {
+		if arg.Order == nil {
+			// Upstream thrift has this as a warning. That seems pointless, so we error.
+			this.context.ReportError(
+				arg.Name.Loc.Start,
+				"%s '%s' should have an explicit order, for better compatibility",
+				kind,
+				arg.Name.Identifier(),
+			)
+			continue
+		}
+
+		// Check that the order number has not already been seen.
+		order, ok := this.toI32(arg.Order)
+		if !ok {
+			continue
+		}
+
+		if prev, ok := orders[order]; ok {
+			this.context.ReportError(
+				arg.Order.Loc.Start,
+				"%s '%s' has the same ordering as %s '%s'",
+				kind,
+				arg.Name.Identifier(),
+				kind,
+				prev.Name.Identifier(),
+			)
+		} else {
+			orders[order] = arg
+		}
+
+		// The order cannot be a negative number.
+		if order <= 0 {
+			this.context.ReportError(
+				arg.Order.Loc.Start,
+				"%s '%s' must be an integer greater than 0",
+				kind,
+				arg.Name.Identifier(),
+			)
 		}
 	}
 }
