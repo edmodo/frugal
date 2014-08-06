@@ -13,6 +13,10 @@ type SocketAndProtocol struct {
 	socket    *Socket
 	iprot     thrift.TProtocol
 	oprot     thrift.TProtocol
+
+	// The client field may be used be consumers of the socket pool to store extra
+	// data associated with the connection.
+	Client    interface{}
 }
 
 func (this *SocketAndProtocol) Transport() thrift.TTransport {
