@@ -26,3 +26,4 @@ Changes from Apache Thrift
  - Although parsing will accept fields and method arguments without explicit ordering ("field keys"), semantic analysis will report an error for anything not explicitly ordered.
  - When creating a constant value with a struct type, if the struct has required fields, those fields must be assigned in the initializer.
  - When assigning default values to optional struct fields, frugal will type-check and evaluate those fields (whereas Apache thrift does not).
+ - Unused includes are an error.
