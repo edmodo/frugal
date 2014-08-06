@@ -11,6 +11,7 @@ Unimplemented Features
 ----------------------
 These features are not yet implemented yet.
  - `byte` type
+ - `binary` type
  - `double` literals (the type is supported)
  - `set` container type
  - `cpp_type` specifier
