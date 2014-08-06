@@ -115,9 +115,9 @@ func (this *Parser) parseInclude() bool {
 	}
 
 	this.tree.Includes[name] = &Include{
-		Tok: tok,
+		Tok:     tok,
 		Package: name,
-		Tree: nil,
+		Tree:    nil,
 	}
 	return true
 }

@@ -55,7 +55,7 @@ func (this *NameBinder) bindNamesInNode(node Node) {
 
 	case *NameProxyNode:
 		node := node.(*NameProxyNode)
-		node.Binding, node.Tail = this.resolvePath(node.Path)
+		node.Import, node.Binding, node.Tail = this.resolvePath(node.Path)
 
 	case *MapNode:
 		node := node.(*MapNode)
@@ -86,7 +86,7 @@ func (this *NameBinder) bindType(ttype Type) {
 	switch ttype.(type) {
 	case *NameProxyNode:
 		ttype := ttype.(*NameProxyNode)
-		ttype.Binding, ttype.Tail = this.resolvePath(ttype.Path)
+		ttype.Import, ttype.Binding, ttype.Tail = this.resolvePath(ttype.Path)
 
 	case *ListType:
 		ttype := ttype.(*ListType)
@@ -106,21 +106,23 @@ func (this *NameBinder) bindType(ttype Type) {
 //      node = Flags, tail = [ADMIN]
 //
 // This information is passed to the type checking phase.
-func (this *NameBinder) resolvePath(path []*Token) (Node, []*Token) {
+func (this *NameBinder) resolvePath(path []*Token) (*ParseTree, Node, []*Token) {
 	root := path[0]
 
 	// Resolve to global symbols first.
 	if _, ok := this.tree.Names[root.Identifier()]; ok {
-		return this.resolvePathInPackage(path, this.tree)
+		binding, tail := this.resolvePathInPackage(path, this.tree)
+		return nil, binding, tail
 	}
 
 	// Otherwise, go to the package.
 	if pkg, ok := this.tree.Includes[root.Identifier()]; ok {
 		if len(path) == 1 {
 			this.context.ReportError(root.Loc.Start, "name '%s' is a package", root.Identifier())
-			return nil, nil
+			return nil, nil, nil
 		}
-		return this.resolvePathInPackage(path[1:], pkg.Tree)
+		binding, tail := this.resolvePathInPackage(path[1:], pkg.Tree)
+		return pkg.Tree, binding, tail
 	}
 
 	// Lastly.. fail.
@@ -129,7 +131,7 @@ func (this *NameBinder) resolvePath(path []*Token) (Node, []*Token) {
 		"could not find any definition or package for name '%s'",
 		root.Identifier(),
 	)
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (this *NameBinder) resolvePathInPackage(path []*Token, tree *ParseTree) (Node, []*Token) {

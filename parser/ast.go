@@ -241,10 +241,18 @@ type NameProxyNode struct {
 	// Path components.
 	Path []*Token
 
-	// Node this resolves to, and successive accessors.
-	// Set by semantic analysis.
-	Binding Node
-	Tail    []*Token
+	// If not a locally bound name, Import specifies the parse tree it came from.
+	// Otherwise it is nil.
+	// Set by semantic analysis. 
+	Import    *ParseTree
+
+	// The node this name is bound to. Set by semantic analysis.
+	Binding   Node
+
+	// The remaining components of Path after resolving it to a Node. For example
+	// if "x.y.z" resolves to a service "y" in package "x", Import will be "x",
+	// "y" will be the *ServiceNode, and Tail will be ["z"].
+	Tail      []*Token
 }
 
 func NewNameProxyNode(path []*Token) *NameProxyNode {
@@ -452,10 +460,10 @@ type ParseTree struct {
 
 func NewParseTree(file string) *ParseTree {
 	return &ParseTree{
-		Namespaces: map[string]string{},
-		Includes:   map[string]*Include{},
-		Path:       file,
-		Names:      map[string]Node{},
+		Namespaces:   map[string]string{},
+		Includes:     map[string]*Include{},
+		Path:         file,
+		Names:        map[string]Node{},
 		UsedIncludes: map[string]bool{},
 	}
 }
