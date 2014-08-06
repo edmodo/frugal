@@ -77,7 +77,7 @@ func (this *CompileContext) ParseRecursive(file string) *ParseTree {
 
 		// Enqueue everything that hasn't been parsed.
 		for name, tree := range tree.Includes {
-			if tree != nil {
+			if tree.Tree != nil {
 				continue
 			}
 
