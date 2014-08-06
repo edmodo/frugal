@@ -318,6 +318,18 @@ type ServiceMethod struct {
 	Throws []*ServiceMethodArg
 }
 
+// Returns whether or not a method has no return value. Should only be called
+// after semantic analysis.
+func (this *ServiceMethod) ReturnsVoid() bool {
+	// Peek past typedefs.
+	ttype, _ := this.ReturnType.Resolve()
+	builtin, ok := ttype.(*BuiltinType)
+	if !ok {
+		return false
+	}
+	return builtin.Tok.Kind == TOK_VOID
+}
+
 // Encapsulates a service definition.
 type ServiceNode struct {
 	Range   Location
