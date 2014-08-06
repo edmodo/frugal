@@ -10,6 +10,7 @@ var compilePhases = []PhaseCallback{
 	enterSymbols,
 	bindNames,
 	typeCheck,
+	cyclicCheck,
 }
 
 func runPhase(context *CompileContext, phase PhaseCallback, tree *ParseTree) bool {
