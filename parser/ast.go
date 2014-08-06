@@ -408,11 +408,15 @@ type ParseTree struct {
 	// The original file path.
 	Path string
 
-	// The package name this file would be imported, in thrift.
+	// The package name this file would be imported as, in thrift. For example,
+	// "egg.thrift" will become package "egg".
 	Package string
 
 	// Name to node mapping, filled in by semantic analysis.
 	Names map[string]Node
+
+	// Set of which includes are used. Filled in by semantic analysis.
+	UsedIncludes map[string]bool
 }
 
 func NewParseTree(file string) *ParseTree {
@@ -421,5 +425,6 @@ func NewParseTree(file string) *ParseTree {
 		Includes:   map[string]*ParseTree{},
 		Path:       file,
 		Names:      map[string]Node{},
+		UsedIncludes: map[string]bool{},
 	}
 }

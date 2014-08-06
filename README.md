@@ -6,6 +6,7 @@ A reimplementation of thrift written in Go. Currently, this is just a parsing an
 Packages:
  - `parser` - The parsing library.
  - `sema` - The semantic analysis library.
+ - `gen` - A helper library for writing generators.
 
 Unimplemented Features
 ----------------------

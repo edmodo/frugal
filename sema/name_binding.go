@@ -135,6 +135,9 @@ func (this *NameBinder) resolvePath(path []*Token) (Node, []*Token) {
 func (this *NameBinder) resolvePathInPackage(path []*Token, tree *ParseTree) (Node, []*Token) {
 	root := path[0]
 
+	// Mark the package as used, whether or not we find what we're looking for.
+	tree.UsedIncludes[tree.Package] = true
+
 	node, ok := tree.Names[root.Identifier()]
 	if !ok {
 		this.context.ReportError(
