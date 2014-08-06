@@ -136,7 +136,7 @@ func (this *NameBinder) resolvePathInPackage(path []*Token, tree *ParseTree) (No
 	root := path[0]
 
 	// Mark the package as used, whether or not we find what we're looking for.
-	tree.UsedIncludes[tree.Package] = true
+	this.tree.UsedIncludes[tree.Package] = true
 
 	node, ok := tree.Names[root.Identifier()]
 	if !ok {
