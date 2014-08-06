@@ -7,17 +7,17 @@ Packages:
  - `parser` - The parsing library.
  - `sema` - The semantic analysis library.
 
-Unsupported Features
---------------------
+Unimplemented Features
+----------------------
 These features are not yet implemented yet.
  - `byte` type
  - `double` literals (the type is supported)
  - `set` container type
  - `cpp_type` specifier
- - `cpp\_include` directive
+ - `cpp_include` directive
  - field attribute strings (called "XsdFieldOptions" in thrift IDL)
  - `senum` and `slist` types (these are deprecated in thrift).
- - `union` types.
+ - `union` types
 
 Changes from Apache Thrift
 --------------------------
