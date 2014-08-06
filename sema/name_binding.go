@@ -120,7 +120,7 @@ func (this *NameBinder) resolvePath(path []*Token) (Node, []*Token) {
 			this.context.ReportError(root.Loc.Start, "name '%s' is a package", root.Identifier())
 			return nil, nil
 		}
-		return this.resolvePathInPackage(path[1:], pkg)
+		return this.resolvePathInPackage(path[1:], pkg.Tree)
 	}
 
 	// Lastly.. fail.

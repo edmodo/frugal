@@ -395,12 +395,24 @@ func (this *ValueNode) NodeType() string {
 	return "value"
 }
 
+// Include directive information.
+type Include struct {
+	// The token containing the include string.
+	Tok *Token
+
+	// The package derived from the include string.
+	Package string
+
+	// The parse tree, filled in by ParseRecursive().
+	Tree *ParseTree
+}
+
 type ParseTree struct {
 	// Mapping of language -> namespace.
 	Namespaces map[string]string
 
-	// List of include paths.
-	Includes map[string]*ParseTree
+	// Map of package names to includes.
+	Includes map[string]*Include
 
 	// Root nodes in the syntax tree.
 	Nodes []Node
@@ -422,7 +434,7 @@ type ParseTree struct {
 func NewParseTree(file string) *ParseTree {
 	return &ParseTree{
 		Namespaces: map[string]string{},
-		Includes:   map[string]*ParseTree{},
+		Includes:   map[string]*Include{},
 		Path:       file,
 		Names:      map[string]Node{},
 		UsedIncludes: map[string]bool{},

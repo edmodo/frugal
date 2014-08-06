@@ -11,6 +11,7 @@ var compilePhases = []PhaseCallback{
 	bindNames,
 	typeCheck,
 	cyclicCheck,
+	checkUnused,
 }
 
 func runPhase(context *CompileContext, phase PhaseCallback, tree *ParseTree) bool {

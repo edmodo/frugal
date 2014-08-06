@@ -94,7 +94,7 @@ func (this *CompileContext) ParseRecursive(file string) *ParseTree {
 	// If we got here, everything was parsed. Update all the mappings.
 	for _, tree := range parsed {
 		for name, _ := range tree.Includes {
-			tree.Includes[name] = parsed[name]
+			tree.Includes[name].Tree = parsed[name]
 		}
 	}
 
@@ -148,11 +148,14 @@ func FlattenTrees(tree *ParseTree) []*ParseTree {
 		trees = append(trees, item)
 
 		for _, other := range item.Includes {
-			if _, ok := processed[other]; ok {
+			if other.Tree == nil {
+				panic(fmt.Errorf("Cannot flatten an incomplete parse tree"))
+			}
+			if _, ok := processed[other.Tree]; ok {
 				continue
 			}
-			queue = append(queue, other)
-			processed[other] = true
+			queue = append(queue, other.Tree)
+			processed[other.Tree] = true
 		}
 	}
 
