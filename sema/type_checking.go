@@ -53,8 +53,12 @@ func (this *TypeChecker) affirmType(ttype Type) bool {
 		return true
 
 	case *NameProxyNode:
+		// We're referencing a defined type by name. Make sure it's actually a type.
 		node := ttype.(*NameProxyNode)
 		if this.checkNodeDeclaresType(node.Binding) {
+			// tail > 0 would indicate that there are extra components in the path.
+			// thrift IDL has no way to nest type names (i.e. you cannot declare
+			// types inside a struct).
 			if len(node.Tail) == 0 {
 				return true
 			}
@@ -75,10 +79,10 @@ func (this *TypeChecker) affirmType(ttype Type) bool {
 
 	case *MapType:
 		ttype := ttype.(*MapType)
-		if !this.affirmType(ttype.Key) {
-			return false
+		if this.affirmType(ttype.Key) && this.affirmType(ttype.Value) {
+			return true
 		}
-		return this.affirmType(ttype.Value)
+		return false
 	}
 
 	panic("unexpected node kind")
