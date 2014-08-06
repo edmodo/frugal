@@ -49,7 +49,7 @@ func (this *Generator) Prefix() string {
 
 // Emits a prefix string.
 func (this *Generator) EmitPrefix() {
-	this.Emit(this.indent)
+	this.Emit(this.prefix)
 }
 
 // Adds an indent.
