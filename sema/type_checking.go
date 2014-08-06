@@ -133,6 +133,20 @@ func (this *TypeChecker) checkType(ttype Type, value Node) *ValueNode {
 	panic("unexpected type")
 }
 
+// Checks whether a literal integer can be coerced to a 16-bit integer.
+func (this *TypeChecker) toI16(lit *Token) (int16, bool) {
+	value := int16(lit.IntLiteral())
+	if int64(value) == lit.IntLiteral() {
+		return value, true
+	}
+	this.context.ReportError(
+		lit.Loc.Start,
+		"value '%d' does not fit in a 16-bit integer",
+		lit.IntLiteral(),
+	)
+	return 0, false
+}
+
 // Checks whether a literal integer can be coerced to a 32-bit integer.
 func (this *TypeChecker) toI32(lit *Token) (int32, bool) {
 	value := int32(lit.IntLiteral())
@@ -162,6 +176,14 @@ func (this *TypeChecker) checkBuiltinType(ttype *BuiltinType, value Node) *Value
 		}
 		if lit.Lit.Kind == TOK_FALSE {
 			return &ValueNode{value, TOK_BOOL, false}
+		}
+	case TOK_I16:
+		if lit.Lit.Kind == TOK_LITERAL_INT {
+			i16, ok := this.toI16(lit.Lit)
+			if !ok {
+				return nil
+			}
+			return &ValueNode{value, TOK_I16, i16}
 		}
 	case TOK_I32:
 		if lit.Lit.Kind == TOK_LITERAL_INT {

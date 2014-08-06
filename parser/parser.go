@@ -270,7 +270,8 @@ func (this *Parser) parseFullName() *NameProxyNode {
 func (this *Parser) parseType() Type {
 	tok := this.scanner.next()
 	switch tok.Kind {
-	case TOK_I32,
+	case TOK_I16,
+		TOK_I32,
 		TOK_I64,
 		TOK_BOOL,
 		TOK_VOID,

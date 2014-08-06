@@ -376,6 +376,7 @@ type ValueNode struct {
 
 	// One of:
 	//   A bool true/false. (Type = BOOL)
+	//   An i16. (Type = I16)
 	//   An i32. (Type = I32)
 	//   An i64. (Type = I64)
 	//   A string. (Type = STRING)

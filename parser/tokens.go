@@ -43,6 +43,7 @@ const (
 	TOK_EXCEPTION
 	TOK_EXTENDS
 	TOK_FALSE
+	TOK_I16
 	TOK_I32
 	TOK_I64
 	TOK_INCLUDE
@@ -84,6 +85,7 @@ var KeywordMap = map[string]TokenKind{
 	"exception": TOK_EXCEPTION,
 	"extends":   TOK_EXTENDS,
 	"false":     TOK_FALSE,
+	"i16":       TOK_I16,
 	"i32":       TOK_I32,
 	"i64":       TOK_I64,
 	"include":   TOK_INCLUDE,
@@ -113,6 +115,7 @@ var PrettyPrintMap = map[TokenKind]string{
 	TOK_EXCEPTION:      "exception",
 	TOK_EXTENDS:        "extends",
 	TOK_FALSE:          "false",
+	TOK_I16:            "i16",
 	TOK_I32:            "i32",
 	TOK_I64:            "i64",
 	TOK_INCLUDE:        "include",
