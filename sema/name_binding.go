@@ -1,4 +1,4 @@
-package main
+package sema
 
 import (
 	. "github.com/edmodo/frugal/parser"
