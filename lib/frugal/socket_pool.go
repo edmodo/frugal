@@ -31,17 +31,21 @@ func NewSocketPool(factory ServiceFactory, maxIdle int) *SocketPool {
 }
 
 // Get a transport and protocol from the cache if one is available.
-func (this *SocketPool) getFree() *SocketAndProtocol {
+func (this *SocketPool) getFree() (*SocketAndProtocol, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
+	if this.closed {
+		return nil, ErrPoolClosed
+	}
+
 	if len(this.connections) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	tp := this.connections[len(this.connections)-1]
 	this.connections = this.connections[:len(this.connections)-1]
-	return tp
+	return tp, nil
 }
 
 // Returns a transport and factory. If any idle transports are available, one
@@ -50,11 +54,10 @@ func (this *SocketPool) getFree() *SocketAndProtocol {
 // Callers may use SocketAndProtocol.Client to store per-connection data, for
 // example, to cache thrift client objects so they don't have to be reallocated.
 func (this *SocketPool) Get() (*SocketAndProtocol, error) {
-	if this.closed {
-		return nil, ErrPoolClosed
+	sap, err := this.getFree()
+	if err != nil {
+		return nil, err
 	}
-
-	sap := this.getFree()
 	if sap != nil {
 		sap.socket.ExtendDeadline()
 		return sap, nil
@@ -71,13 +74,13 @@ func (this *SocketPool) Get() (*SocketAndProtocol, error) {
 //     }
 //     defer pool.Put(cn, &err)
 func (this *SocketPool) Put(sap *SocketAndProtocol, err *error) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
 	if *err != nil || this.closed {
 		sap.socket.Close()
 		return
 	}
-
-	this.lock.Lock()
-	defer this.lock.Unlock()
 
 	if len(this.connections) >= this.maxIdle {
 		sap.socket.Close()
