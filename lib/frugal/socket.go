@@ -8,14 +8,15 @@ import (
 
 var ErrSocketClosed = errors.New("socket was closed")
 
-// A socket-based TTransport, as an alternative to TSocket. In particular it
-// exposes deadline extension for SocketPool.
+// A socket-based TTransport, as an alternative to TSocket. It exposes deadline
+// extension for SocketPool.
 type Socket struct {
 	cn      net.Conn
 	timeout time.Duration
 	closed  error
 }
 
+// Allocate a new socket using the given host:port string and timeout duration.
 func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 	addr, err := net.ResolveTCPAddr("tcp", hostAndPort)
 	if err != nil {
@@ -32,15 +33,19 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 	}, nil
 }
 
+// Provided for TTransport compatibility; the socket is always open unless it
+// is explicitly closed.
 func (this *Socket) Open() error {
-	// Sockets start open, and are only closed if explicitly closed.
 	return this.closed
 }
 
+// Provided for TTransport compatibility; the socket is always open unless it
+// is explicitly closed.
 func (this *Socket) IsOpen() bool {
 	return this.closed == nil
 }
 
+// Close the socket.
 func (this *Socket) Close() error {
 	this.closed = ErrSocketClosed
 	return this.cn.Close()
@@ -51,11 +56,13 @@ func (this *Socket) Peek() bool {
 	return this.IsOpen()
 }
 
+// Does nothing; provided for TTransport compatibility.
 func (this *Socket) Flush() error {
 	return nil
 }
 
-// Extend the timeout deadline.
+// Extend the timeout deadline based on the current time and the socket's
+// allowable timeout.
 func (this *Socket) ExtendDeadline() {
 	this.cn.SetDeadline(this.extendedDeadline())
 }

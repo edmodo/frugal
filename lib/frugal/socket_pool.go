@@ -1,14 +1,24 @@
 package frugal
 
 import (
+	"errors"
 	"sync"
 )
 
+var ErrPoolClosed = errors.New("pool is closed")
+
+// A SocketPool is responsible for pooling re-using connections. It has three
+// main entry points in its API:
+//
+//    Get - Returns a cached connection, or makes a new one.
+//    Put - Returns a connection to the cache, or discards it if it errored.
+//    Close - Closes all cached connections.
 type SocketPool struct {
 	factory     ServiceFactory
 	maxIdle     int
 	connections []*SocketAndProtocol
 	lock        sync.Mutex
+	closed      bool
 }
 
 // Create a new socket pool with a given maximum number of idle connections.
@@ -16,6 +26,7 @@ func NewSocketPool(factory ServiceFactory, maxIdle int) *SocketPool {
 	return &SocketPool{
 		factory: factory,
 		maxIdle: maxIdle,
+		closed: false,
 	}
 }
 
@@ -33,8 +44,16 @@ func (this *SocketPool) getFree() *SocketAndProtocol {
 	return tp
 }
 
-// Get a transport and protocol.
+// Returns a transport and factory. If any idle transports are available, one
+// is returned, otherwise a new one is allocated.
+//
+// Callers may use SocketAndProtocol.Client to store per-connection data, for
+// example, to cache thrift client objects so they don't have to be reallocated.
 func (this *SocketPool) Get() (*SocketAndProtocol, error) {
+	if this.closed {
+		return nil, ErrPoolClosed
+	}
+
 	sap := this.getFree()
 	if sap != nil {
 		sap.socket.ExtendDeadline()
@@ -52,7 +71,7 @@ func (this *SocketPool) Get() (*SocketAndProtocol, error) {
 //     }
 //     defer pool.Put(cn, &err)
 func (this *SocketPool) Put(sap *SocketAndProtocol, err *error) {
-	if *err != nil {
+	if *err != nil || this.closed {
 		sap.socket.Close()
 		return
 	}
@@ -65,4 +84,17 @@ func (this *SocketPool) Put(sap *SocketAndProtocol, err *error) {
 		return
 	}
 	this.connections = append(this.connections, sap)
+}
+
+// Close all pending connections, then mark the pool as closed so no further
+// connections will be cached.
+func (this *SocketPool) Close() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	for _, sap := range this.connections {
+		sap.socket.Close()
+	}
+	this.connections = nil
+	this.closed = true
 }
