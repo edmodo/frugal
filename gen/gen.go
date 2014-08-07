@@ -3,10 +3,11 @@ package gen
 import (
 	"bytes"
 	"fmt"
+	"io"
 )
 
 type Generator struct {
-	buffer bytes.Buffer
+	buffer *bytes.Buffer
 	indent string
 	prefix string
 
@@ -15,15 +16,25 @@ type Generator struct {
 
 	// If using spaces, this controls the indent size.
 	indentSize int
+
+	// Use a separate buffer for the header, so codegen can track what needs to
+	// be imported.
+	body   *bytes.Buffer
+	header *bytes.Buffer
 }
 
 // Creates a new generator, defaulting to hard tabs.
 func NewGenerator() *Generator {
+	body := new(bytes.Buffer)
+	header := new(bytes.Buffer)
 	return &Generator{
+		buffer:     body,
 		indent:     "\t",
 		prefix:     "",
 		softTabs:   false,
 		indentSize: 1,
+		body:       body,
+		header:     header,
 	}
 }
 
@@ -74,6 +85,25 @@ func (this *Generator) Writeln(sfmt string, args ...interface{}) {
 	this.Emit("\n")
 }
 
-func (this *Generator) String() string {
-	return string(this.buffer.Bytes())
+// Emit an empty line.
+func (this *Generator) Newline() {
+	this.Emit("\n")
+}
+
+// Switch to emitting the header.
+func (this *Generator) SwitchToHeader() {
+	this.buffer = this.header
+}
+
+// Switch to emitting the body (default).
+func (this *Generator) SwitchToBody() {
+	this.buffer = this.body
+}
+
+func (this *Generator) ExportHeader(writer io.Writer) (int, error) {
+	return writer.Write(this.header.Bytes())
+}
+
+func (this *Generator) ExportBody(writer io.Writer) (int, error) {
+	return writer.Write(this.body.Bytes())
 }
