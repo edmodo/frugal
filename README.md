@@ -7,6 +7,7 @@ Packages:
  - `parser` - The parsing library.
  - `sema` - The semantic analysis library.
  - `gen` - A helper library for writing generators.
+ - `lib/frugal` - API extensions to Thrift's Go API.
 
 Unimplemented Features
 ----------------------
