@@ -28,8 +28,8 @@ func (this *SocketPool) getFree() *SocketAndProtocol {
 		return nil
 	}
 
-	tp := this.connections[len(this.connections) - 1]
-	this.connections = this.connections[:len(this.connections) - 1]
+	tp := this.connections[len(this.connections)-1]
+	this.connections = this.connections[:len(this.connections)-1]
 	return tp
 }
 

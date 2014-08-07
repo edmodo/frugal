@@ -8,15 +8,23 @@ type ServiceFactory interface {
 	Connect() (*SocketAndProtocol, error)
 }
 
-// A transport and protocol 
+// A transport and protocol
 type SocketAndProtocol struct {
-	socket    *Socket
-	iprot     thrift.TProtocol
-	oprot     thrift.TProtocol
+	socket *Socket
+	iprot  thrift.TProtocol
+	oprot  thrift.TProtocol
 
 	// The client field may be used be consumers of the socket pool to store extra
 	// data associated with the connection.
-	Client    interface{}
+	Client interface{}
+}
+
+func NewSocketAndProtocolFromFactory(socket *Socket, factory thrift.TProtocolFactory) *SocketAndProtocol {
+	return &SocketAndProtocol{
+		socket: socket,
+		iprot:  factory.GetProtocol(socket),
+		oprot:  factory.GetProtocol(socket),
+	}
 }
 
 func (this *SocketAndProtocol) Transport() thrift.TTransport {

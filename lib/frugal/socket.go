@@ -26,9 +26,9 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 		return nil, err
 	}
 	return &Socket{
-		cn: cn,
+		cn:      cn,
 		timeout: timeout,
-		closed: nil,
+		closed:  nil,
 	}, nil
 }
 
