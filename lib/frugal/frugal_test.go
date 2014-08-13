@@ -27,9 +27,9 @@ type TestHandler func(transport thrift.TTransport)
 // A simple server that just replies with whatever data it receives.
 func NewTestServer() *TestServer {
 	return &TestServer{
-		Port: "45321",
-		Socket: nil,
-		notify: make(chan bool),
+		Port:    "45321",
+		Socket:  nil,
+		notify:  make(chan bool),
 		stopped: false,
 	}
 }
@@ -90,10 +90,10 @@ func NewTestClientFactory() *TestClientFactory {
 	return &TestClientFactory{}
 }
 
-func (this *TestClientFactory) Connect() (*SocketAndProtocol, error) {
-	socket, err := NewSocket("127.0.0.1:45321", 0)
+func (this *TestClientFactory) Connect() (*Connection, error) {
+	transport, err := NewSocket("127.0.0.1:45321", 0)
 	if err != nil {
 		return nil, err
 	}
-	return NewSocketAndProtocolFromFactory(socket, thrift.NewTBinaryProtocolFactoryDefault()), nil
+	return NewConnectionFromFactory(transport, thrift.NewTBinaryProtocolFactoryDefault()), nil
 }

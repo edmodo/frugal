@@ -2,6 +2,7 @@ package frugal
 
 import (
 	"errors"
+	"log"
 	"sync"
 )
 
@@ -16,7 +17,7 @@ var ErrPoolClosed = errors.New("pool is closed")
 type SocketPool struct {
 	factory     ServiceFactory
 	maxIdle     int
-	connections []*SocketAndProtocol
+	connections []*Connection
 	lock        sync.Mutex
 	closed      bool
 }
@@ -26,12 +27,12 @@ func NewSocketPool(factory ServiceFactory, maxIdle int) *SocketPool {
 	return &SocketPool{
 		factory: factory,
 		maxIdle: maxIdle,
-		closed: false,
+		closed:  false,
 	}
 }
 
 // Get a transport and protocol from the cache if one is available.
-func (this *SocketPool) getFree() (*SocketAndProtocol, error) {
+func (this *SocketPool) getFree() (*Connection, error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
@@ -45,22 +46,28 @@ func (this *SocketPool) getFree() (*SocketAndProtocol, error) {
 
 	tp := this.connections[len(this.connections)-1]
 	this.connections = this.connections[:len(this.connections)-1]
+
+	// Ask to re-use the connection. If that doesn't work, log the error and
+	// just signal for a new connection.
+	if err := tp.transport.Reuse(); err != nil {
+		log.Printf("connection re-use error: %s\n", err.Error())
+		return nil, nil
+	}
 	return tp, nil
 }
 
 // Returns a transport and factory. If any idle transports are available, one
 // is returned, otherwise a new one is allocated.
 //
-// Callers may use SocketAndProtocol.Client to store per-connection data, for
+// Callers may use Connection.Client to store per-connection data, for
 // example, to cache thrift client objects so they don't have to be reallocated.
-func (this *SocketPool) Get() (*SocketAndProtocol, error) {
-	sap, err := this.getFree()
+func (this *SocketPool) Get() (*Connection, error) {
+	conn, err := this.getFree()
 	if err != nil {
 		return nil, err
 	}
-	if sap != nil {
-		sap.socket.ExtendDeadline()
-		return sap, nil
+	if conn != nil {
+		return conn, nil
 	}
 
 	return this.factory.Connect()
@@ -73,20 +80,20 @@ func (this *SocketPool) Get() (*SocketAndProtocol, error) {
 //     if err != nil { ...
 //     }
 //     defer pool.Put(cn, &err)
-func (this *SocketPool) Put(sap *SocketAndProtocol, err *error) {
+func (this *SocketPool) Put(conn *Connection, err *error) {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
 	if *err != nil || this.closed {
-		sap.socket.Close()
+		conn.transport.Close()
 		return
 	}
 
 	if len(this.connections) >= this.maxIdle {
-		sap.socket.Close()
+		conn.transport.Close()
 		return
 	}
-	this.connections = append(this.connections, sap)
+	this.connections = append(this.connections, conn)
 }
 
 // Close all pending connections, then mark the pool as closed so no further
@@ -95,8 +102,8 @@ func (this *SocketPool) Close() {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
-	for _, sap := range this.connections {
-		sap.socket.Close()
+	for _, conn := range this.connections {
+		conn.transport.Close()
 	}
 	this.connections = nil
 	this.closed = true

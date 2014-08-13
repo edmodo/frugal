@@ -9,11 +9,14 @@ import (
 var _ = Describe("SocketPool", func() {
 	It("Re-dials a dead connection", func() {
 		server := NewTestServer()
-		//defer server.Stop()
+		defer server.Stop()
+
+		wait := make(chan bool)
 
 		err := server.Start(func(transport thrift.TTransport) {
 			// Immediately close the connection to simulate the server dying.
 			transport.Close()
+			wait <- true
 		})
 		Expect(err).To(BeNil())
 
@@ -30,25 +33,42 @@ var _ = Describe("SocketPool", func() {
 		Expect(err).To(BeNil())
 		Expect(sap2).To(Equal(sap))
 
+		// Build a large buffer to send so it doesn't just get cached in the kernel.
+		// We want to get the EPIPE.
+		bytes := make([]byte, 131072 * 2)
+
+		// Write some stuff.
+		n, err := sap.Transport().Write(bytes)
+		Expect(err).To(BeNil())
+		Expect(n).To(Equal(len(bytes)))
+		err = sap.Transport().Flush()
+		Expect(err).To(BeNil())
+
 		pool.Put(sap, &err)
 
-		// Terminate the server.
+		// Wait for the client goroutine to finish and then terminate the server.
+		<-wait
 		server.Stop()
 
-		// Start it again.
-		err = server.Start(func(transport thrift.TTransport) {
-			// Just leave the connection idle.
-		})
+		// Start the server again.
+		err = server.Start(func(transport thrift.TTransport) {})
 		Expect(err).To(BeNil())
 
 		// Grab something out of the pool.
 		sap, err = pool.Get()
 		Expect(err).To(BeNil())
+		Expect(sap).To(Equal(sap2))
+
+		//oldIteration := sap.socket.iteration
+		//Expect(oldIteration).ToNot(BeNil())
 
 		// Try to write some bizytes.
-		bytes := []byte("Hello!")
-		n, err := sap.Transport().Write(bytes)
+		n, err = sap.Transport().Write(bytes)
 		Expect(err).To(BeNil())
 		Expect(n).To(Equal(len(bytes)))
+
+		// Force bytes to be written.
+		err = sap.Transport().Flush()
+		Expect(err).To(BeNil())
 	})
 })
