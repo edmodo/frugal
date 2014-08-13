@@ -158,7 +158,10 @@ func (this *Socket) Read(buf []byte) (int, error) {
 	n, err := this.recv(buf)
 
 	// If we got no bytes and the connection died, restart and try again.
-	if n == 0 && this.tryRestart(err) {
+	if n == 0 {
+		if err := this.tryRestart(err); err != nil {
+			return n, err
+		}
 		return this.recv(buf)
 	}
 
@@ -196,11 +199,11 @@ func (this *Socket) isRestartable(err error) bool {
 	return false
 }
 
-func (this *Socket) tryRestart(err error) bool {
+func (this *Socket) tryRestart(err error) error {
 	// This socket was verified to be working, either via an initial call to Dial
 	// or from a successful receive. Any failure now is a real failure.
 	if this.verified {
-		return false
+		return err
 	}
 
 	// Close the old socket before we continue.
@@ -209,13 +212,25 @@ func (this *Socket) tryRestart(err error) bool {
 	// Try reconnecting.
 	this.cn, err = dialHostAndPort(this.hostAndPort, this.timeout)
 	if err != nil {
-		return false
+		return err
 	}
 
 	// Reopen for business.
 	this.closed = nil
 	this.verified = true
-	return true
+
+	// Attempt to resend everything that was sent via Flush(). We cannot get here
+	// if we've already had a successful call to Read(), so we expect that it's
+	// safe to resend everything from the current thrift request.
+	resend := this.resendBuffer
+	this.resendBuffer = nil
+	for _, bytes := range resend {
+		if err := this.send(bytes); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (this *Socket) send(bytes []byte) error {
@@ -244,19 +259,8 @@ func (this *Socket) Flush() error {
 	this.resendBuffer = append(this.resendBuffer, bytes)
 
 	if err := this.send(bytes); err != nil {
-		if !this.tryRestart(err) {
+		if err = this.tryRestart(err); err != nil {
 			return err
-		}
-
-		// Take the resend buffer.
-		resend := this.resendBuffer
-		this.resendBuffer = nil
-
-		// Try to resend everything that's been queued up.
-		for _, bytes := range resend {
-			if err := this.send(bytes); err != nil {
-				return err
-			}
 		}
 	}
 
