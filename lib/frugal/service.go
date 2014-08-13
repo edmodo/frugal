@@ -19,6 +19,9 @@ type Transport interface {
 	// to send keepalive messages or indicate if the transport cannot be reused.
 	// Errors are logged but are non-fatal; a new connection will be made.
 	Reuse() error
+
+	// Block until all bytes that can fit in buf are filled.
+	ReadAll(buf []byte) error
 }
 
 // A container for socket and protocol information required by thrift. It also
