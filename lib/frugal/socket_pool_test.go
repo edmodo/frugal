@@ -35,7 +35,7 @@ var _ = Describe("SocketPool", func() {
 
 		// Build a large buffer to send so it doesn't just get cached in the kernel.
 		// We want to get the EPIPE.
-		bytes := make([]byte, 131072 * 2)
+		bytes := make([]byte, 131072*2)
 
 		// Write some stuff.
 		n, err := sap.Transport().Write(bytes)
@@ -59,15 +59,11 @@ var _ = Describe("SocketPool", func() {
 		Expect(err).To(BeNil())
 		Expect(sap).To(Equal(sap2))
 
-		//oldIteration := sap.socket.iteration
-		//Expect(oldIteration).ToNot(BeNil())
-
 		// Try to write some bizytes.
 		n, err = sap.Transport().Write(bytes)
 		Expect(err).To(BeNil())
 		Expect(n).To(Equal(len(bytes)))
 
-		// Force bytes to be written.
 		err = sap.Transport().Flush()
 		Expect(err).To(BeNil())
 	})

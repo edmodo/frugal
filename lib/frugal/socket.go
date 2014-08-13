@@ -19,20 +19,20 @@ type Socket struct {
 
 	// Network data is received into a fixed-size read buffer, and calls to Read()
 	// access this buffer. If the buffer is depleted, the network is read again.
-	readBuffer     []byte
-	readPos        int
-	readLimit      int
+	readBuffer []byte
+	readPos    int
+	readLimit  int
 
 	// If true, the socket has just been selected for re-use. This is cleared after
 	// the first successful call to Read().
-	reusing        bool
+	reusing bool
 
 	// All writes accumulate into this buffer.
-	writeBuffer    bytes.Buffer
+	writeBuffer bytes.Buffer
 
 	// This is the "resend" buffer. If the connection appears to be dead, it is
 	// used to resend any data.
-	resendBuffer   []byte
+	resendBuffer []byte
 }
 
 func dialHostAndPort(hostAndPort string, timeout time.Duration) (net.Conn, error) {
@@ -55,8 +55,8 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 	}
 
 	return &Socket{
-		cn:      cn,
-		timeout: timeout,
+		cn:         cn,
+		timeout:    timeout,
 		readBuffer: make([]byte, kReadBufferSize),
 	}, nil
 }

@@ -31,15 +31,15 @@ type Connection struct {
 
 	// The client field may be used be consumers of the socket pool to store extra
 	// data associated with the connection.
-	Client    interface{}
+	Client interface{}
 }
 
 // Allocate a new Connection given a frugal.Socket and a TProtocolFactory.
 func NewConnectionFromFactory(transport Transport, factory thrift.TProtocolFactory) *Connection {
 	return &Connection{
 		transport: transport,
-		iprot:  factory.GetProtocol(transport),
-		oprot:  factory.GetProtocol(transport),
+		iprot:     factory.GetProtocol(transport),
+		oprot:     factory.GetProtocol(transport),
 	}
 }
 
