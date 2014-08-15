@@ -57,6 +57,15 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 	}, nil
 }
 
+func NewSocketFromConn(conn net.Conn, timeout time.Duration) *Socket {
+	return &Socket{
+		hostAndPort: conn.RemoteAddr().String(),
+		cn:          conn,
+		timeout:     timeout,
+		readBuffer:  make([]byte, kReadBufferSize),
+	}
+}
+
 // Provided for TTransport compatibility; the socket is always open unless it
 // is explicitly closed.
 func (this *Socket) Open() error {
