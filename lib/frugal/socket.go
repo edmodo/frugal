@@ -3,9 +3,7 @@ package frugal
 import (
 	"bytes"
 	"errors"
-	"io"
 	"net"
-	"syscall"
 	"time"
 )
 
@@ -28,19 +26,8 @@ type Socket struct {
 	readPos    int
 	readLimit  int
 
-	// If false, the socket has been idle in a pool. It is not "verified" until a
-	// successful call to Read(). It is true immediately after connection.
-	verified   bool
-
 	// All writes accumulate into this buffer.
 	writeBuffer bytes.Buffer
-
-	// This is the "resend" buffer. If the connection appears to be dead, it is
-	// used to resend any data. We use a list of bytes (1) so we don't have to
-	// append slices together and (2) because multiple calls to Flush() aren't
-	// guaranteed to fail. Only a Read() can tell us whether the pipe is truly
-	// broken.
-	resendBuffer [][]byte
 }
 
 func dialHostAndPort(hostAndPort string, timeout time.Duration) (net.Conn, error) {
@@ -67,7 +54,6 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 		cn:          cn,
 		timeout:     timeout,
 		readBuffer:  make([]byte, kReadBufferSize),
-		verified:    true,
 	}, nil
 }
 
@@ -109,8 +95,6 @@ func (this *Socket) Reuse() error {
 
 	// Reset everything.
 	this.cn.SetDeadline(this.extendedDeadline())
-	this.verified = false
-	this.resendBuffer = nil
 	return nil
 }
 
@@ -122,6 +106,7 @@ func (this *Socket) extendedDeadline() time.Time {
 	return t
 }
 
+// Receive up to len(buf) bytes into buf, and return the number of bytes read.
 func (this *Socket) recv(buf []byte) (int, error) {
 	// Check if we need to refill the read buffer.
 	if this.readPos == this.readLimit {
@@ -132,9 +117,6 @@ func (this *Socket) recv(buf []byte) (int, error) {
 			return n, err
 		}
 		this.readLimit = n
-
-		// We got a successful read, so verify the connection.
-		this.verified = true
 	}
 
 	n := copy(buf, this.readBuffer[this.readPos:this.readLimit])
@@ -142,6 +124,7 @@ func (this *Socket) recv(buf []byte) (int, error) {
 	return n, nil
 }
 
+// Implements Transport.Read.
 func (this *Socket) Read(buf []byte) (int, error) {
 	if this.closed != nil {
 		return 0, this.closed
@@ -154,20 +137,10 @@ func (this *Socket) Read(buf []byte) (int, error) {
 	}
 
 	this.cn.SetReadDeadline(this.extendedDeadline())
-
-	n, err := this.recv(buf)
-
-	// If we got no bytes and the connection died, restart and try again.
-	if n == 0 {
-		if err := this.tryRestart(err); err != nil {
-			return n, err
-		}
-		return this.recv(buf)
-	}
-
-	return n, err
+	return this.recv(buf)
 }
 
+// Implements Transport.Write.
 func (this *Socket) Write(bytes []byte) (int, error) {
 	if this.closed != nil {
 		return 0, this.closed
@@ -183,53 +156,17 @@ func (this *Socket) RemoteAddr() string {
 	return this.cn.RemoteAddr().String()
 }
 
-// Only restart from broken pipes, which happen when either end of the socket
-// closes.
-func (this *Socket) isRestartable(err error) bool {
-	if err == io.EOF {
-		return true
-	}
-
-	if opError, ok := err.(*net.OpError); ok {
-		if opError.Err == syscall.EPIPE && opError.Err == syscall.ECONNRESET {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (this *Socket) tryRestart(err error) error {
-	// This socket was verified to be working, either via an initial call to Dial
-	// or from a successful receive. Any failure now is a real failure.
-	if this.verified {
-		return err
-	}
-
-	// Close the old socket before we continue.
+// Re-establish the connection.
+func (this *Socket) redial() error {
 	this.Close()
 
-	// Try reconnecting.
-	this.cn, err = dialHostAndPort(this.hostAndPort, this.timeout)
+	cn, err := dialHostAndPort(this.hostAndPort, this.timeout)
 	if err != nil {
 		return err
 	}
 
-	// Reopen for business.
+	this.cn = cn
 	this.closed = nil
-	this.verified = true
-
-	// Attempt to resend everything that was sent via Flush(). We cannot get here
-	// if we've already had a successful call to Read(), so we expect that it's
-	// safe to resend everything from the current thrift request.
-	resend := this.resendBuffer
-	this.resendBuffer = nil
-	for _, bytes := range resend {
-		if err := this.send(bytes); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -255,27 +192,5 @@ func (this *Socket) Flush() error {
 	bytes := this.writeBuffer.Bytes()
 	this.writeBuffer.Reset()
 
-	// Add this to the resend buffer, in case we need to reconnect.
-	this.resendBuffer = append(this.resendBuffer, bytes)
-
-	if err := this.send(bytes); err != nil {
-		if err = this.tryRestart(err); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-
-func (this *Socket) ReadAll(buf []byte) error {
-	received := 0
-	for received < len(buf) {
-		n, err := this.Read(buf[received:])
-		if err != nil {
-			return err
-		}
-		received += n
-	}
-	return nil
+	return this.send(bytes)
 }

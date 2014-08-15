@@ -136,7 +136,7 @@ var _ = Describe("SocketPool", func() {
 
 		// Ask for some data.
 		buffer := make([]byte, len(data))
-		err = sap.Transport().ReadAll(buffer)
+		err = ReceiveAll(sap.Transport(), buffer)
 		Expect(err).To(BeNil())
 		Expect(buffer).To(Equal(data))
 	})

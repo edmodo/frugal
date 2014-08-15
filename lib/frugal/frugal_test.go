@@ -91,7 +91,7 @@ func NewTestClientFactory() *TestClientFactory {
 }
 
 func (this *TestClientFactory) Connect() (*Connection, error) {
-	transport, err := NewSocket("127.0.0.1:45321", 0)
+	transport, err := NewResumeableSocket("127.0.0.1:45321", 0)
 	if err != nil {
 		return nil, err
 	}
