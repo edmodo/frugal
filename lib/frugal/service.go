@@ -19,9 +19,6 @@ type Transport interface {
 	// to send keepalive messages or indicate if the transport cannot be reused.
 	// Errors are logged but are non-fatal; a new connection will be made.
 	Reuse() error
-
-	// Block until all bytes that can fit in buf are filled.
-	ReadAll(buf []byte) error
 }
 
 // A container for socket and protocol information required by thrift. It also
@@ -59,4 +56,17 @@ func (this *Connection) Input() thrift.TProtocol {
 // Return the output TProtocol for Thrift.
 func (this *Connection) Output() thrift.TProtocol {
 	return this.oprot
+}
+
+// Block until all bytes that can fit in buf are filled.
+func ReceiveAll(transport Transport, buf []byte) error {
+	received := 0
+	for received < len(buf) {
+		n, err := transport.Read(buf[received:])
+		if err != nil {
+			return err
+		}
+		received += n
+	}
+	return nil
 }
