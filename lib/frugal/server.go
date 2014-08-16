@@ -20,7 +20,7 @@ type Request struct {
 	Output      thrift.TProtocol
 }
 
-// Callbacks that must be implemented for NewThriftServer().
+// Callbacks that must be implemented for NewServer().
 type ServerInterface interface {
 	// Must return input and output protocols for a client.
 	GetProtocolsForClient(client Transport) (thrift.TProtocol, thrift.TProtocol)
@@ -32,7 +32,7 @@ type ServerInterface interface {
 	LogError(context string, err error)
 }
 
-// Options that can be passed to NewThriftServer().
+// Options that can be passed to NewServer().
 type ServerOptions struct {
 	// Host and port string for listening.
 	ListenAddr string
@@ -44,8 +44,8 @@ type ServerOptions struct {
 // This is a reimplementation of thrift.TSimpleServer. Eventually, we would
 // like to remove dependence on the unnecessary factory abstraction layers,
 // but for now we wrap the Thrift API.
-type ThriftServer struct {
-	// Passed in via NewThriftServer().
+type Server struct {
+	// Passed in via NewServer().
 	callbacks ServerInterface
 	options   *ServerOptions
 
@@ -60,12 +60,12 @@ type ThriftServer struct {
 
 // Allocates a new thrift server. If the given host+port cannot be resolved,
 // an error is returned.
-func NewThriftServer(callbacks ServerInterface, options *ServerOptions) (*ThriftServer, error) {
+func NewServer(callbacks ServerInterface, options *ServerOptions) (*Server, error) {
 	addr, err := net.ResolveTCPAddr("tcp", options.ListenAddr)
 	if err != nil {
 		return nil, err
 	}
-	return &ThriftServer{
+	return &Server{
 		callbacks: callbacks,
 		options:   options,
 		addr:      addr,
@@ -75,7 +75,7 @@ func NewThriftServer(callbacks ServerInterface, options *ServerOptions) (*Thrift
 	}, nil
 }
 
-func (this *ThriftServer) Serve() error {
+func (this *Server) Serve() error {
 	if this.listener != nil {
 		return errors.New("server is already listening")
 	}
@@ -111,7 +111,7 @@ func (this *ThriftServer) Serve() error {
 	return nil
 }
 
-func (this *ThriftServer) processRequest(conn net.Conn) {
+func (this *Server) processRequest(conn net.Conn) {
 	socket := NewSocketFromConn(conn, this.options.ClientTimeout)
 	defer socket.Close()
 
@@ -145,7 +145,7 @@ func (this *ThriftServer) processRequest(conn net.Conn) {
 	}
 }
 
-func (this *ThriftServer) Stop() {
+func (this *Server) Stop() {
 	if this.listener == nil || this.stopped {
 		return
 	}
