@@ -20,13 +20,18 @@ type Request struct {
 	Output      thrift.TProtocol
 }
 
-// Callbacks that must be implemented for NewServer().
-type ServerInterface interface {
-	// Must return input and output protocols for a client.
-	GetProtocolsForClient(client Transport) (thrift.TProtocol, thrift.TProtocol)
-
+// Callbacks for a request processor.
+type Processor interface {
 	// Process a client request.
 	ProcessRequest(request *Request) error
+}
+
+// Callbacks that must be implemented for NewServer().
+type ServerInterface interface {
+	Processor
+
+	// Must return input and output protocols for a client.
+	GetProtocolsForClient(client Transport) (thrift.TProtocol, thrift.TProtocol)
 
 	// Optionally log any errors encountered running the server.
 	LogError(context string, err error)
@@ -39,6 +44,9 @@ type ServerOptions struct {
 
 	// Timeout for client operations.
 	ClientTimeout time.Duration
+
+	// Whether or not to use framing.
+	Framed bool
 }
 
 // This is a reimplementation of thrift.TSimpleServer. Eventually, we would
@@ -75,6 +83,15 @@ func NewServer(callbacks ServerInterface, options *ServerOptions) (*Server, erro
 	}, nil
 }
 
+// Returns the address the server is listening or will listen on.
+func (this *Server) Addr() net.Addr {
+	if this.listener != nil {
+		return this.listener.Addr()
+	}
+	return this.addr
+}
+
+// Begins servicing requests. Blocks until Stop() is called.
 func (this *Server) Serve() error {
 	if this.listener != nil {
 		return errors.New("server is already listening")
@@ -119,7 +136,7 @@ func (this *Server) processRequest(conn net.Conn) {
 	for {
 		name, msgType, sequenceId, err := iprot.ReadMessageBegin()
 		if err != nil {
-			if err != io.EOF {
+			if err.Error() != io.EOF.Error() {
 				// Log the error if it's not a clean exit.
 				this.callbacks.LogError("read-message-begin", err)
 			}
@@ -145,6 +162,7 @@ func (this *Server) processRequest(conn net.Conn) {
 	}
 }
 
+// Interrupts Serve() causing the server to stop servicing requests.
 func (this *Server) Stop() {
 	if this.listener == nil || this.stopped {
 		return
