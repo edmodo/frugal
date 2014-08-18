@@ -102,11 +102,15 @@ func (this *Socket) Reuse() error {
 		return ErrPendingWrites
 	}
 
-	// Reset everything.
-	if this.timeout > 0 {
-		this.cn.SetDeadline(this.extendedDeadline())
-	}
+	this.cn.SetDeadline(this.extendedDeadline())
 	return nil
+}
+
+// Sets the timeout, and returns the old timeout.
+func (this *Socket) SetTimeout(timeout time.Duration) time.Duration {
+	old := this.timeout
+	this.timeout = timeout
+	return old
 }
 
 func (this *Socket) extendedDeadline() time.Time {
@@ -147,9 +151,7 @@ func (this *Socket) Read(buf []byte) (int, error) {
 		return 0, ErrPendingWrites
 	}
 
-	if this.timeout > 0 {
-		this.cn.SetReadDeadline(this.extendedDeadline())
-	}
+	this.cn.SetReadDeadline(this.extendedDeadline())
 	return this.recv(buf)
 }
 
@@ -159,9 +161,7 @@ func (this *Socket) Write(bytes []byte) (int, error) {
 		return 0, this.closed
 	}
 
-	if this.timeout > 0 {
-		this.cn.SetWriteDeadline(this.extendedDeadline())
-	}
+	this.cn.SetWriteDeadline(this.extendedDeadline())
 	this.writeBuffer.Write(bytes)
 	return len(bytes), nil
 }

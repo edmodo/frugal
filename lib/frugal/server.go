@@ -83,6 +83,39 @@ func NewServer(callbacks ServerInterface, options *ServerOptions) (*Server, erro
 	}, nil
 }
 
+// Thrift's protocol is not framed by default, so to differentiate between
+// an idle connection and one that times out while reading a component of
+// a header, we use a small wrapper type.
+type ServerClientSocket struct {
+	*Socket
+	firstRead  bool
+	oldTimeout time.Duration
+}
+
+func NewServerClientSocket(conn net.Conn, timeout time.Duration) *ServerClientSocket {
+	return &ServerClientSocket{
+		NewSocketFromConn(conn, timeout),
+		false,
+		0,
+	}
+}
+
+func (this *ServerClientSocket) Reuse() error {
+	// Flag the socket so that the next Read() has no timeout.
+	this.firstRead = true
+	this.oldTimeout = this.SetTimeout(0)
+	return this.Socket.Reuse()
+}
+
+func (this *ServerClientSocket) Read(buf []byte) (int, error) {
+	n, err := this.Socket.Read(buf)
+	if this.firstRead {
+		this.firstRead = false
+		this.SetTimeout(this.oldTimeout)
+	}
+	return n, err
+}
+
 // Returns the address the server is listening or will listen on.
 func (this *Server) Addr() net.Addr {
 	if this.listener != nil {
@@ -129,7 +162,7 @@ func (this *Server) Serve() error {
 }
 
 func (this *Server) processRequest(conn net.Conn) {
-	socket := NewSocketFromConn(conn, this.options.ClientTimeout)
+	socket := NewServerClientSocket(conn, this.options.ClientTimeout)
 	defer socket.Close()
 
 	// Number of requests serviced off this connection.
@@ -139,6 +172,8 @@ func (this *Server) processRequest(conn net.Conn) {
 	for {
 		name, msgType, sequenceId, err := iprot.ReadMessageBegin()
 		if err != nil {
+			// NB: Thrift coughs up some non-standard EOF instance, so we have to compare
+			// the string instead.
 			if err.Error() == io.EOF.Error() {
 				return
 			}
@@ -146,11 +181,8 @@ func (this *Server) processRequest(conn net.Conn) {
 			netErr, ok := err.(net.Error)
 			if ok && netErr.Timeout() && serviced >= 1 {
 				// We already got data from this connection, and now it's idle. Just keep
-				// polling for more data.
-				if err := socket.Reuse(); err != nil {
-					this.callbacks.LogError("reuse-socket", err)
-					return
-				}
+				// polling for more data. Currently, we always set an infinite timeout
+				// when calling Reuse(), but we may want occasional polling later.
 				continue
 			}
 
@@ -177,6 +209,11 @@ func (this *Server) processRequest(conn net.Conn) {
 		}
 
 		serviced++
+
+		if err := socket.Reuse(); err != nil {
+			this.callbacks.LogError("reuse-socket", err)
+			return
+		}
 	}
 }
 
