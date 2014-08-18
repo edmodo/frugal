@@ -95,7 +95,7 @@ func (this *Socket) Reuse() error {
 	if this.closed != nil {
 		return this.closed
 	}
-	if this.readLimit != 0 {
+	if this.readLimit != this.readPos {
 		return ErrPendingReads
 	}
 	if this.writeBuffer.Len() > 0 {
