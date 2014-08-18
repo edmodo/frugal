@@ -132,14 +132,30 @@ func (this *Server) processRequest(conn net.Conn) {
 	socket := NewSocketFromConn(conn, this.options.ClientTimeout)
 	defer socket.Close()
 
+	// Number of requests serviced off this connection.
+	serviced := 0
+
 	iprot, oprot := this.callbacks.GetProtocolsForClient(socket)
 	for {
 		name, msgType, sequenceId, err := iprot.ReadMessageBegin()
 		if err != nil {
-			if err.Error() != io.EOF.Error() {
-				// Log the error if it's not a clean exit.
-				this.callbacks.LogError("read-message-begin", err)
+			if err.Error() == io.EOF.Error() {
+				return
 			}
+
+			netErr, ok := err.(net.Error)
+			if ok && netErr.Timeout() && serviced >= 1 {
+				// We already got data from this connection, and now it's idle. Just keep
+				// polling for more data.
+				if err := socket.Reuse(); err != nil {
+					this.callbacks.LogError("reuse-socket", err)
+					return
+				}
+				continue
+			}
+
+			// Otherwise, the error is fatal.
+			this.callbacks.LogError("read-message-begin", err)
 			return
 		}
 
@@ -159,6 +175,8 @@ func (this *Server) processRequest(conn net.Conn) {
 			this.callbacks.LogError("process-request", err)
 			break
 		}
+
+		serviced++
 	}
 }
 
