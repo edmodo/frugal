@@ -17,7 +17,6 @@ type Transport interface {
 
 	// Indicate that the transport is about to be re-used. This is an opportunity
 	// to send keepalive messages or indicate if the transport cannot be reused.
-	// Errors are logged but are non-fatal; a new connection will be made.
 	Reuse() error
 }
 

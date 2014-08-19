@@ -57,6 +57,15 @@ func NewSocket(hostAndPort string, timeout time.Duration) (*Socket, error) {
 	}, nil
 }
 
+func NewSocketFromConn(conn net.Conn, timeout time.Duration) *Socket {
+	return &Socket{
+		hostAndPort: conn.RemoteAddr().String(),
+		cn:          conn,
+		timeout:     timeout,
+		readBuffer:  make([]byte, kReadBufferSize),
+	}
+}
+
 // Provided for TTransport compatibility; the socket is always open unless it
 // is explicitly closed.
 func (this *Socket) Open() error {
@@ -86,16 +95,22 @@ func (this *Socket) Reuse() error {
 	if this.closed != nil {
 		return this.closed
 	}
-	if this.readLimit != 0 {
+	if this.readLimit != this.readPos {
 		return ErrPendingReads
 	}
 	if this.writeBuffer.Len() > 0 {
 		return ErrPendingWrites
 	}
 
-	// Reset everything.
 	this.cn.SetDeadline(this.extendedDeadline())
 	return nil
+}
+
+// Sets the timeout, and returns the old timeout.
+func (this *Socket) SetTimeout(timeout time.Duration) time.Duration {
+	old := this.timeout
+	this.timeout = timeout
+	return old
 }
 
 func (this *Socket) extendedDeadline() time.Time {
