@@ -243,8 +243,8 @@ type NameProxyNode struct {
 
 	// If not a locally bound name, Import specifies the parse tree it came from.
 	// Otherwise it is nil.
-	// Set by semantic analysis. 
-	Import    *ParseTree
+	// Set by semantic analysis.
+	Import *ParseTree
 
 	// The node this name is bound to. Set by semantic analysis.
 	//
@@ -253,12 +253,12 @@ type NameProxyNode struct {
 	//
 	// Another file could not access "x.y". Therefore, a code generator can always
 	// use Import to determine the path to compute.
-	Binding   Node
+	Binding Node
 
 	// The remaining components of Path after resolving it to a Node. For example
 	// if "x.y.z" resolves to a service "y" in package "x", Import will be "x",
 	// "y" will be the *ServiceNode, and Tail will be ["z"].
-	Tail      []*Token
+	Tail []*Token
 }
 
 func NewNameProxyNode(path []*Token) *NameProxyNode {
