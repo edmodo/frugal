@@ -11,6 +11,7 @@
 // BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
+// Semantic analysis for thrift IDL files. This package has tools to make sure that all name references are bound, that types are checked and are non-circular, that names are not duplicated, et cetera.
 package sema
 
 import (

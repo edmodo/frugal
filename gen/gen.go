@@ -11,6 +11,7 @@
 // BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
+// `gen` provides a simple helper for writing text code generators. It buffers output (and can maintain separate buffers), and automatically tracks indenting. It is not a code generator itself.
 package gen
 
 import (

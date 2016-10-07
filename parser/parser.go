@@ -1,3 +1,4 @@
+// Parses Thrift IDL files.
 package parser
 
 import (
