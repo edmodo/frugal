@@ -88,7 +88,7 @@ func (this *ResumeableSocket) isRestartable(err error) bool {
 	}
 
 	if opError, ok := err.(*net.OpError); ok {
-		if opError.Err == syscall.EPIPE && opError.Err == syscall.ECONNRESET {
+		if opError.Err == syscall.EPIPE || opError.Err == syscall.ECONNRESET {
 			return true
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"os"
 	"time"
 )
 
@@ -44,6 +45,14 @@ type Socket struct {
 }
 
 func dialHostAndPort(hostAndPort string, timeout time.Duration) (net.Conn, error) {
+	if _, err := os.Stat(hostAndPort); err == nil {
+		cn, err := net.DialTimeout("unix", hostAndPort, timeout)
+		if err != nil {
+			return nil, err
+		}
+		return cn, nil
+	}
+
 	addr, err := net.ResolveTCPAddr("tcp", hostAndPort)
 	if err != nil {
 		return nil, err
