@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
-	"os"
+	"strings"
 	"time"
 )
 
@@ -45,7 +45,7 @@ type Socket struct {
 }
 
 func dialHostAndPort(hostAndPort string, timeout time.Duration) (net.Conn, error) {
-	if _, err := os.Stat(hostAndPort); err == nil {
+	if strings.HasPrefix(hostAndPort, "/") {
 		cn, err := net.DialTimeout("unix", hostAndPort, timeout)
 		if err != nil {
 			return nil, err
